@@ -8,9 +8,20 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/jmoiron/sqlx"
 )
 
 const defaultPort = "8080"
+
+var db *sqlx.DB
+
+func init() {
+	var err error
+	db, err := sqlx.Connect("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatalf("failed to connect to db: %v", err)
+	}
+}
 
 func main() {
 	port := os.Getenv("PORT")
