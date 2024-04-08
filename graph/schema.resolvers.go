@@ -16,10 +16,15 @@ import (
 func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
 	// panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
 	randNumber, _ := rand.Int(rand.Reader, big.NewInt(100))
+
+	user := &model.User{
+		ID: input.UserID,
+	}
+
 	todo := &model.Todo{
 		Text: input.Text,
 		ID:   fmt.Sprintf("T%d", randNumber),
-		User: input.UserID,
+		User: user,
 	}
 	r.todos = append(r.todos, todo)
 	return todo, nil
