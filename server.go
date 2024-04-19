@@ -4,25 +4,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"webmane_go/db"
 	"webmane_go/graph"
 	"webmane_go/music"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
-	// "github.com/jmoiron/sqlx"
 )
 
 const defaultPort = "8080"
-
-// var db *sqlx.DB
-
-// func init() {
-// 	var err error
-// 	db, err := sqlx.Connect("postgres", os.Getenv("DATABASE_URL"))
-// 	if err != nil {
-// 		log.Fatalf("failed to connect to db: %v", err)
-// 	}
-// }
 
 func main() {
 	port := os.Getenv("PORT")
@@ -30,12 +20,19 @@ func main() {
 		port = defaultPort
 	}
 
+	// initialize database pool
+	dbPool, db_err := db.ConnectToDb()
+
+	if db_err != nil {
+		log.Fatalf("Connecting to database failed:\n %v", db_err)
+	}
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
+	// srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{DB: dbPool}}))
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)
 	http.HandleFunc("/music", music.GetMusic)
-	http.HandleFunc("/music/seed", music.SeedMusic)
+	http.HandleFunc("/music/seed", music.SeedMusic(dbPool))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
