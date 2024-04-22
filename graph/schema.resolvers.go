@@ -7,12 +7,38 @@ package graph
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
 	"webmane_go/graph/model"
 )
 
 // UpsertSong is the resolver for the upsertSong field.
 func (r *mutationResolver) UpsertSong(ctx context.Context, input model.SongInput) (*model.Song, error) {
-	panic(fmt.Errorf("not implemented: UpsertSong - upsertSong"))
+	// panic(fmt.Errorf("not implemented: UpsertSong - upsertSong"))
+	id := input.ID
+	var song model.Song
+	song.Path = input.Path
+
+	now := time.Now().String()
+	song.LastUpdate = now
+
+	n := len(r.Resolver.MusicStore)
+	if n == 0 {
+		r.Resolver.MusicStore = make(map[string]model.Song)
+	}
+
+	if id != nil {
+		_, ok := r.Resolver.MusicStore[*id]
+		if !ok {
+			return nil, fmt.Errorf("not found")
+		}
+		r.Resolver.MusicStore[*id] = song
+	} else {
+		nid := strconv.Itoa(n + 1)
+		song.ID = nid
+		r.Resolver.MusicStore[nid] = song
+	}
+	return &song, nil
 }
 
 // Song is the resolver for the song field.
@@ -33,11 +59,3 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//     it when you're done.
-//   - You have helper methods in this file. Move them out to keep these resolver files clean.
-type todoResolver struct{ *Resolver }

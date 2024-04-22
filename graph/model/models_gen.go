@@ -15,7 +15,6 @@ type Song struct {
 }
 
 type SongInput struct {
-	ID         *string `json:"id,omitempty"`
-	Path       string  `json:"path"`
-	LastUpdate *string `json:"lastUpdate,omitempty"`
+	ID   *string `json:"id,omitempty"`
+	Path string  `json:"path"`
 }

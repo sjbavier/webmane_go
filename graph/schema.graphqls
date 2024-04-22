@@ -1,5 +1,3 @@
-scalar Date
-
 type Query {
   song(id: ID!): Song
   music: [Song]!
@@ -12,11 +10,10 @@ type Mutation {
 type Song {
   id: ID!
   path: String!
-  lastUpdate: Date!
+  lastUpdate: String!
 }
 
 input SongInput {
   id: ID
   path: String!
-  lastUpdate: Date
 }
