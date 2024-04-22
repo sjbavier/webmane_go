@@ -15,5 +15,6 @@ func ConnectToDb() (*pgxpool.Pool, error) {
 		fmt.Sprintf("Error connecting to db %v", err)
 		return pool, err
 	}
+	fmt.Println("Connected to database")
 	return pool, nil
 }

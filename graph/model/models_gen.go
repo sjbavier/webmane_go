@@ -5,15 +5,17 @@ package model
 type Mutation struct {
 }
 
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
-}
-
 type Query struct {
 }
 
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type Song struct {
+	ID         string `json:"id"`
+	Path       string `json:"path"`
+	LastUpdate string `json:"lastUpdate"`
+}
+
+type SongInput struct {
+	ID         *string `json:"id,omitempty"`
+	Path       string  `json:"path"`
+	LastUpdate *string `json:"lastUpdate,omitempty"`
 }

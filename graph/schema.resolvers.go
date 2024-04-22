@@ -6,40 +6,23 @@ package graph
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"math/big"
 	"webmane_go/graph/model"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	// panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
-	randNumber, _ := rand.Int(rand.Reader, big.NewInt(100))
-
-	user := &model.User{
-		ID: input.UserID,
-	}
-
-	todo := &model.Todo{
-		Text: input.Text,
-		ID:   fmt.Sprintf("T%d", randNumber),
-		User: user,
-	}
-	r.todos = append(r.todos, todo)
-	return todo, nil
+// UpsertSong is the resolver for the upsertSong field.
+func (r *mutationResolver) UpsertSong(ctx context.Context, input model.SongInput) (*model.Song, error) {
+	panic(fmt.Errorf("not implemented: UpsertSong - upsertSong"))
 }
 
-// Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	// panic(fmt.Errorf("not implemented: Todos - todos"))
-	return r.todos, nil
+// Song is the resolver for the song field.
+func (r *queryResolver) Song(ctx context.Context, id string) (*model.Song, error) {
+	panic(fmt.Errorf("not implemented: Song - song"))
 }
 
-// User is the resolver for the user field.
-func (r *todoResolver) User(ctx context.Context, obj *model.Todo) (*model.User, error) {
-	// panic(fmt.Errorf("not implemented: User - user"))
-	return &model.User{ID: obj.UserID, Name: "user " + obj.User.ID}, nil
+// Music is the resolver for the music field.
+func (r *queryResolver) Music(ctx context.Context) ([]*model.Song, error) {
+	panic(fmt.Errorf("not implemented: Music - music"))
 }
 
 // Mutation returns MutationResolver implementation.
@@ -48,9 +31,13 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-// Todo returns TodoResolver implementation.
-func (r *Resolver) Todo() TodoResolver { return &todoResolver{r} }
-
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//     it when you're done.
+//   - You have helper methods in this file. Move them out to keep these resolver files clean.
 type todoResolver struct{ *Resolver }
