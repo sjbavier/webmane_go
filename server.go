@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"webmane_go/cmd"
 	"webmane_go/db"
 	"webmane_go/graph"
 	"webmane_go/music"
@@ -26,6 +27,10 @@ func main() {
 	if db_err != nil {
 		log.Fatalf("Connecting to database failed:\n %v", db_err)
 	}
+
+	// command line
+	cmd.Execute()
+
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
 	// srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{DB: dbPool}}))
 
