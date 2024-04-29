@@ -1,6 +1,10 @@
 package graph
 
-import "webmane_go/graph/model"
+import (
+	"webmane_go/graph/model"
+
+	"github.com/jackc/pgx/v4/pgxpool"
+)
 
 //go:generate go run github.com/99designs/gqlgen generate
 
@@ -9,5 +13,6 @@ import "webmane_go/graph/model"
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
+	DB         *pgxpool.Pool
 	MusicStore map[string]model.Song
 }

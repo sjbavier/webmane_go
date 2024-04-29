@@ -27,9 +27,16 @@ func main() {
 	if db_err != nil {
 		log.Fatalf("Connecting to database failed:\n %v", db_err)
 	}
+	defer dbPool.Close()
 
 	// command line
-	cmd.Execute()
+	resolver := &graph.Resolver{DB: dbPool}
+	rootCmd := cmd.CommandContextWrapper(dbPool, resolver)
+	if cmd_err := rootCmd.Execute(); cmd_err != nil {
+		log.Fatalf("command failed to execute  %v", cmd_err)
+	}
+
+	// cmd.Execute()
 
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
 	// srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{DB: dbPool}}))
