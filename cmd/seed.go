@@ -11,19 +11,18 @@ import (
 )
 
 type CommandContext struct {
-	DBPool           *pgxpool.Pool
-	Resolver         *graph.Resolver
-	MutationResolver *graph.MutationResolver
+	DBPool   *pgxpool.Pool
+	Resolver *graph.Resolver
 }
 
-func CommandContextWrapper(dbPool *pgxpool.Pool, mutationResolver *graph.MutationResolver) *cobra.Command {
-	ctx := &CommandContext{DBPool: dbPool, MutationResolver: mutationResolver}
+func CommandContextWrapper(dbPool *pgxpool.Pool, resolver *graph.Resolver) *cobra.Command {
+	ctx := &CommandContext{DBPool: dbPool, Resolver: resolver}
 
 	seedCmd := &cobra.Command{
 		Use:   "seed",
 		Short: "seed database with data",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Database seeded")
+			fmt.Println("attempting to seed database")
 			return ctx.seedMusic()
 		},
 	}
@@ -34,11 +33,12 @@ func CommandContextWrapper(dbPool *pgxpool.Pool, mutationResolver *graph.Mutatio
 }
 
 func (ctx *CommandContext) seedMusic() error {
+	songId := "1"
 	input := model.SongInput{
-		ID:   "1",
+		ID:   &songId,
 		Path: "BEST OF AFROBEATS NAIJA OVERDOSE 13 VIDEO MIX 2022 [Burna Boy, Asake, Ruger, Buga, Finesse, Ckay]-GZOV93NoXSI.m4a",
 	}
-	song, err := ctx.MutationResolver.UpsertSong(context.Background(), input)
+	song, err := ctx.Resolver.Mutation().UpsertSong(context.Background(), input)
 	if err != nil {
 		fmt.Printf("Error seeding song %v\n", err)
 		return err

@@ -5,6 +5,7 @@ go 1.21.6
 require (
 	github.com/99designs/gqlgen v0.17.44
 	github.com/jackc/pgx/v4 v4.18.3
+	github.com/spf13/cobra v1.8.0
 	github.com/vektah/gqlparser/v2 v2.5.11
 )
 
@@ -26,7 +27,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sosodev/duration v1.2.0 // indirect
-	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/urfave/cli/v2 v2.27.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
