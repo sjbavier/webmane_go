@@ -8,13 +8,12 @@ type Mutation struct {
 type Query struct {
 }
 
-type Song struct {
-	ID         string `json:"id"`
-	Path       string `json:"path"`
-	LastUpdate string `json:"lastUpdate"`
-}
-
 type SongInput struct {
-	ID   *string `json:"id,omitempty"`
-	Path string  `json:"path"`
+	ID          *string `json:"id,omitempty"`
+	Path        string  `json:"path"`
+	Title       *string `json:"title,omitempty"`
+	Artist      *string `json:"artist,omitempty"`
+	Album       *string `json:"album,omitempty"`
+	Genre       *string `json:"genre,omitempty"`
+	ReleaseYear *string `json:"release_year,omitempty"`
 }

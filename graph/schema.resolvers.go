@@ -15,28 +15,42 @@ import (
 // UpsertSong is the resolver for the upsertSong field.
 func (r *mutationResolver) UpsertSong(ctx context.Context, input model.SongInput) (*model.Song, error) {
 	// panic(fmt.Errorf("not implemented: UpsertSong - upsertSong"))
-	id := input.ID
 	var song model.Song
 	song.Path = input.Path
+	song.LastUpdate = time.Now().Format(time.RFC3339)
 
-	now := time.Now().String()
-	song.LastUpdate = now
-
-	n := len(r.Resolver.MusicStore)
-	if n == 0 {
-		r.Resolver.MusicStore = make(map[string]model.Song)
+	// Check and assign optional fields
+	if input.Title != nil {
+		song.Title = *input.Title
+	}
+	if input.Artist != nil {
+		song.Artist = *input.Artist
+	}
+	if input.Album != nil {
+		song.Album = *input.Album
+	}
+	if input.Genre != nil {
+		song.Genre = *input.Genre
+	}
+	if input.ReleaseYear != nil {
+		song.ReleaseYear = *input.ReleaseYear
 	}
 
-	if id != nil {
-		_, ok := r.Resolver.MusicStore[*id]
-		if !ok {
-			return nil, fmt.Errorf("not found")
+	if input.ID != nil && *input.ID != "" {
+		// UPDATE song
+		id, _ := strconv.ParseInt(*input.ID, 10, 64)
+		sql := `UPDATE music SET path=$2, last_update=$3, title=$4, artist=$5, album=$6, genre=$7, release_year=$8 WHERE id=$1 RETURNING id`
+		err := r.DB.QueryRow(ctx, sql, id, song.Path, song.LastUpdate, song.Title, song.Artist, song.Album, song.Genre, song.ReleaseYear).Scan(&song.ID)
+		if err != nil {
+			return nil, fmt.Errorf("error updating song: %v\nerror: %v", song.Title, err)
 		}
-		r.Resolver.MusicStore[*id] = song
 	} else {
-		nid := strconv.Itoa(n + 1)
-		song.ID = nid
-		r.Resolver.MusicStore[nid] = song
+		// INSERT: no ID
+		sql := `INSERT INTO music (path, last_update, title, artist, album, genre, release_year) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+		err := r.DB.QueryRow(ctx, sql, song.Path, song.LastUpdate, song.Title, song.Artist, song.Album, song.Genre, song.ReleaseYear).Scan(&song.ID)
+		if err != nil {
+			return nil, fmt.Errorf("error updating song: %v\nerror: %v", song.Title, err)
+		}
 	}
 	return &song, nil
 }

@@ -11,9 +11,19 @@ type Song {
   id: ID!
   path: String!
   lastUpdate: String!
+  title: String
+  artist: String
+  album: String
+  genre: String
+  release_year: String
 }
 
 input SongInput {
   id: ID
   path: String!
+  title: String
+  artist: String
+  album: String
+  genre: String
+  release_year: String
 }
