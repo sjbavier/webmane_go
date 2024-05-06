@@ -52,6 +52,7 @@ func (r *mutationResolver) UpsertSong(ctx context.Context, input model.SongInput
 			return nil, fmt.Errorf("error updating song: %v\nerror: %v", song.Title, err)
 		}
 	}
+
 	return &song, nil
 }
 

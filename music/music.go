@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const baseDirectory = "./music/data/"
+const BaseDirectory = "./music/data/"
 
 func GetMusic(w http.ResponseWriter, r *http.Request) {
 	// extract the relative file path and validate
@@ -25,13 +25,13 @@ func GetMusic(w http.ResponseWriter, r *http.Request) {
 	var fullPath string
 	var extension string
 	for _, ext := range extensions {
-		if _, err := os.Stat(baseDirectory + cleanPath + ext); err != nil {
+		if _, err := os.Stat(BaseDirectory + cleanPath + ext); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				// path doesn't exist
 				continue
 			}
 		}
-		fullPath = filepath.Join(baseDirectory, fileQuery+ext)
+		fullPath = filepath.Join(BaseDirectory, fileQuery+ext)
 		extension = strings.Split(ext, ".")[1]
 		break
 	}
