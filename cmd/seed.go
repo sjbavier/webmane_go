@@ -104,35 +104,19 @@ func (ctx *CommandContext) seedMusic() error {
 		if info.IsDir() {
 			return nil
 		}
-		// data, err := ffprobe.GetProbeData()
-		metaJson, errProbe := ffmpeg_go.Probe(path)
-		if errProbe != nil {
-			fmt.Printf("error with probe: %v", errProbe)
-		}
 
-		var songMeta FFProbe
-		errMar := json.Unmarshal([]byte(metaJson), &songMeta)
-		if errMar != nil {
+		// grab file extension
+		extension := filepath.Ext(path)
+		for _, ext := range music.Extensions {
 
-			fmt.Printf("error with unmarshal: %v", errMar)
-		}
-		input := model.SongInput{
-			Path:        path,
-			Title:       &songMeta.Format.Tags.Title,
-			Artist:      &songMeta.Format.Tags.Artist,
-			Album:       &songMeta.Format.Tags.Album,
-			Genre:       &songMeta.Format.Tags.Genre,
-			ReleaseYear: &songMeta.Format.Tags.ReleaseYear,
-		}
+			// looping through the accepted extensions on match insert song, break loop
+			if extension == ext {
 
-		_song, err := ctx.Resolver.Mutation().UpsertSong(context.Background(), input)
+				go insertSong(path, ctx)
+				break
+			}
 
-		if err != nil {
-			fmt.Printf("Error seeding song %v\n", err)
-			return err
 		}
-		fmt.Printf("song seeded %v", _song)
-		fmt.Printf("song seeded meta %v", songMeta)
 
 		return nil
 	})
@@ -142,19 +126,39 @@ func (ctx *CommandContext) seedMusic() error {
 		return errWalk
 
 	}
+	fmt.Println("Done seeding")
 
-	// input := model.SongInput{
-	// 	Path: "4BEST OF AFROBEATS NAIJA OVERDOSE 13 VIDEO MIX 2022 [Burna Boy, Asake, Ruger, Buga, Finesse, Ckay]-GZOV93NoXSI.m4a",
-	// }
-
-	// song, err := ctx.Resolver.Mutation().UpsertSong(context.Background(), input)
-
-	// if err != nil {
-	// 	fmt.Printf("Error seeding song %v\n", err)
-	// 	return err
-	// }
-
-	// fmt.Println("Seeded song with path: ")
-	// fmt.Printf("%s\n", song.Path)
 	return nil
+}
+
+func insertSong(path string, ctx *CommandContext) {
+	metaJson, errProbe := ffmpeg_go.Probe(path)
+	if errProbe != nil {
+		fmt.Printf("error with probe: %v", errProbe)
+	}
+
+	var songMeta FFProbe
+	errMar := json.Unmarshal([]byte(metaJson), &songMeta)
+	if errMar != nil {
+
+		fmt.Printf("error with unmarshal: %v", errMar)
+	}
+	input := model.SongInput{
+		Path:        path,
+		Title:       &songMeta.Format.Tags.Title,
+		Artist:      &songMeta.Format.Tags.Artist,
+		Album:       &songMeta.Format.Tags.Album,
+		Genre:       &songMeta.Format.Tags.Genre,
+		ReleaseYear: &songMeta.Format.Tags.ReleaseYear,
+	}
+
+	_, err := ctx.Resolver.Mutation().UpsertSong(context.Background(), input)
+
+	if err != nil {
+		fmt.Printf("Error seeding song %v\n", path)
+		fmt.Println(err)
+	}
+	// fmt.Printf("song seeded %v", _song)
+	// fmt.Println("")
+
 }

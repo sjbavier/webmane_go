@@ -63,7 +63,31 @@ func (r *queryResolver) Song(ctx context.Context, id string) (*model.Song, error
 
 // Music is the resolver for the music field.
 func (r *queryResolver) Music(ctx context.Context) ([]*model.Song, error) {
-	panic(fmt.Errorf("not implemented: Music - music"))
+	// panic(fmt.Errorf("not implemented: Music - music"))
+	sql := `SELECT * FROM MUSIC`
+	rows, err := r.DB.Query(ctx, sql)
+	if err != nil {
+		return nil, fmt.Errorf("error getting music")
+	}
+	defer rows.Close()
+	var songs []*model.Song
+
+	for rows.Next() {
+		var song model.Song
+		err := rows.Scan(&song.ID, &song.Path, &song.LastUpdate, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear)
+
+		if err != nil {
+			return nil, fmt.Errorf("error scanning song %v", err)
+		}
+
+		songs = append(songs, &song)
+	}
+
+	if err = rows.Err(); err != nil {
+
+		return nil, fmt.Errorf("error iterating %v", err)
+	}
+	return songs, nil
 }
 
 // Mutation returns MutationResolver implementation.

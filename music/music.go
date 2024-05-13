@@ -14,17 +14,17 @@ import (
 
 const BaseDirectory = "./music/data/"
 
+var Extensions = []string{".m4a", ".mp4", ".mp3", ".flac"}
+
 func GetMusic(w http.ResponseWriter, r *http.Request) {
 	// extract the relative file path and validate
 	fileQuery := r.URL.Query().Get("file")
 
 	cleanPath := path.Clean(fileQuery)
 
-	extensions := []string{".mp4", ".mp3", ".flac"}
-
 	var fullPath string
 	var extension string
-	for _, ext := range extensions {
+	for _, ext := range Extensions {
 		if _, err := os.Stat(BaseDirectory + cleanPath + ext); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				// path doesn't exist
@@ -44,6 +44,8 @@ func GetMusic(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "audio/mp4")
 	case extension == "m4a":
 		w.Header().Set("Content-Type", "audio/m4a")
+	case extension == "mp3":
+		w.Header().Set("Content-Type", "audio/mp3")
 	default:
 		w.Header().Set("Content-Type", fmt.Sprintf("audio/%v", extension))
 	}
