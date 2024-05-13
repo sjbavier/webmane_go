@@ -74,12 +74,14 @@ func (r *queryResolver) Music(ctx context.Context) ([]*model.Song, error) {
 
 	for rows.Next() {
 		var song model.Song
-		err := rows.Scan(&song.ID, &song.Path, &song.LastUpdate, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear)
+		var lastUpdateTime time.Time
+		err := rows.Scan(&song.ID, &song.Path, &lastUpdateTime, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear)
 
 		if err != nil {
 			return nil, fmt.Errorf("error scanning song %v", err)
 		}
 
+		song.LastUpdate = lastUpdateTime.Format(time.RFC3339)
 		songs = append(songs, &song)
 	}
 
