@@ -1,66 +1,125 @@
 package music
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
+	"webmane_go/graph/model"
+
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 const BaseDirectory = "./music/data/"
 
 var Extensions = []string{".m4a", ".mp4", ".mp3", ".flac"}
 
-func GetMusic(w http.ResponseWriter, r *http.Request) {
-	// extract the relative file path and validate
-	fileQuery := r.URL.Query().Get("file")
+func GetMusic(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.Background()
+		// extract the relative file path and validate
+		musicId := r.URL.Query().Get("id")
+		if musicId == "" {
+			http.Error(w, "Missing music ID", http.StatusBadRequest)
+			return
+		}
 
-	cleanPath := path.Clean(fileQuery)
+		var song model.Song
+		var lastUpdateTime time.Time
+		sql := `SELECT id, path, last_update, title, artist, album, genre, release_year FROM MUSIC WHERE id = $1`
+		err := dbpool.QueryRow(ctx, sql, musicId).Scan(&song.ID, &song.Path, &lastUpdateTime, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear)
+		if err != nil {
+			http.Error(w, "Error getting music: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-	var fullPath string
-	var extension string
-	for _, ext := range Extensions {
-		if _, err := os.Stat(BaseDirectory + cleanPath + ext); err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				// path doesn't exist
-				continue
+		song.LastUpdate = lastUpdateTime.Format(time.RFC3339)
+		// defer rows.Close()
+		extension := filepath.Ext(song.Path)
+		// Set the appropriate content type for FLAC audio
+		switch {
+		case extension == ".flac":
+			w.Header().Set("Content-Type", "audio/flac")
+		case extension == ".mp4":
+			w.Header().Set("Content-Type", "audio/mp4")
+		case extension == ".m4a":
+			w.Header().Set("Content-Type", "audio/m4a")
+		case extension == ".mp3":
+			w.Header().Set("Content-Type", "audio/mp3")
+		default:
+			http.Error(w, "Unsupported file type", http.StatusUnsupportedMediaType)
+			return
+		}
+
+		// Open the audio file
+		file, err := os.Open(song.Path)
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		// Get the file size
+		stat, err := file.Stat()
+		if err != nil {
+			http.Error(w, "Could not get file info", http.StatusInternalServerError)
+			return
+		}
+		fileSize := stat.Size()
+
+		// Handle HTTP range requests
+		rangeHeader := r.Header.Get("Range")
+		if rangeHeader == "" {
+			w.Header().Set("Content-Length", fmt.Sprint(fileSize))
+			http.ServeContent(w, r, song.Path, stat.ModTime(), file)
+			return
+		}
+
+		ranges := strings.Split(rangeHeader, "=")
+		if len(ranges) != 2 {
+			http.Error(w, "Invalid range header", http.StatusBadRequest)
+			return
+		}
+
+		rangeParts := strings.Split(ranges[1], "-")
+		start := int64(0)
+		if rangeParts[0] != "" {
+			start, err = strconv.ParseInt(rangeParts[0], 10, 64)
+			if err != nil {
+				http.Error(w, "Invalid range start", http.StatusBadRequest)
+				return
 			}
 		}
-		fullPath = filepath.Join(BaseDirectory, fileQuery+ext)
-		extension = strings.Split(ext, ".")[1]
-		break
-	}
+		end := fileSize - 1
+		if len(rangeParts) > 1 && rangeParts[1] != "" {
+			end, err = strconv.ParseInt(rangeParts[1], 10, 64)
+			if err != nil {
+				http.Error(w, "Invalid range end", http.StatusBadRequest)
+				return
+			}
+		}
 
-	// Set the appropriate content type for FLAC audio
-	switch {
-	case extension == "flac":
-		w.Header().Set("Content-Type", "audio/flac")
-	case extension == "mp4":
-		w.Header().Set("Content-Type", "audio/mp4")
-	case extension == "m4a":
-		w.Header().Set("Content-Type", "audio/m4a")
-	case extension == "mp3":
-		w.Header().Set("Content-Type", "audio/mp3")
-	default:
-		w.Header().Set("Content-Type", fmt.Sprintf("audio/%v", extension))
-	}
+		if start > end || start < 0 || end >= fileSize {
+			http.Error(w, "Invalid range", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
 
-	// Open the FLAC file
-	file, err := os.Open(fullPath)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
-	}
-	defer file.Close()
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
+		w.Header().Set("Content-Length", fmt.Sprint(end-start+1))
+		w.WriteHeader(http.StatusPartialContent)
 
-	// Stream the file to the response
-	_, err = io.Copy(w, file)
-	if err != nil {
-		http.Error(w, "Error streaming file", http.StatusInternalServerError)
+		_, err = file.Seek(start, io.SeekStart)
+		if err != nil {
+			http.Error(w, "Error seeking file", http.StatusInternalServerError)
+			return
+		}
+
+		_, err = io.CopyN(w, file, end-start+1)
+		if err != nil {
+			http.Error(w, "Error serving file", http.StatusInternalServerError)
+		}
 	}
 }
