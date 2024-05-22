@@ -1,6 +1,6 @@
 type Query {
   song(id: ID!): Song
-  music: [Song]!
+  music(pageNumber: Int, pageSize: Int): MusicResponse!
 }
 
 type Mutation {
@@ -16,6 +16,11 @@ type Song {
   album: String
   genre: String
   release_year: String
+}
+
+type MusicResponse {
+  songs: [Song]!
+  totalItemsCount: Int!
 }
 
 input SongInput {

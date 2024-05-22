@@ -62,10 +62,30 @@ func (r *queryResolver) Song(ctx context.Context, id string) (*model.Song, error
 }
 
 // Music is the resolver for the music field.
-func (r *queryResolver) Music(ctx context.Context) ([]*model.Song, error) {
+func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *int) (*model.MusicResponse, error) {
 	// panic(fmt.Errorf("not implemented: Music - music"))
-	sql := `SELECT * FROM MUSIC`
-	rows, err := r.DB.Query(ctx, sql)
+	defaultPageNumber := 1
+	defaultPageSize := 10
+
+	if pageNumber == nil {
+		pageNumber = &defaultPageNumber
+	}
+	if pageSize == nil {
+		pageSize = &defaultPageSize
+	}
+
+	offset := (*pageNumber - 1) * *pageSize
+
+	// Query to get the total item count
+	countSQL := `SELECT COUNT(*) FROM MUSIC`
+	var totalItemsCount int
+	err := r.DB.QueryRow(ctx, countSQL).Scan(&totalItemsCount)
+	if err != nil {
+		return nil, fmt.Errorf("error getting total item count: %v", err)
+	}
+
+	sql := `SELECT * FROM MUSIC LIMIT $1 OFFSET $2`
+	rows, err := r.DB.Query(ctx, sql, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("error getting music")
 	}
@@ -89,7 +109,11 @@ func (r *queryResolver) Music(ctx context.Context) ([]*model.Song, error) {
 
 		return nil, fmt.Errorf("error iterating %v", err)
 	}
-	return songs, nil
+	// Return the MusicResult
+	return &model.MusicResponse{
+		Songs:           songs,
+		TotalItemsCount: totalItemsCount,
+	}, nil
 }
 
 // Mutation returns MutationResolver implementation.

@@ -2,6 +2,11 @@
 
 package model
 
+type MusicResponse struct {
+	Songs           []*Song `json:"songs"`
+	TotalItemsCount int     `json:"totalItemsCount"`
+}
+
 type Mutation struct {
 }
 
