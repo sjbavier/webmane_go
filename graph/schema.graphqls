@@ -1,6 +1,6 @@
 type Query {
   song(id: ID!): Song
-  music(pageNumber: Int, pageSize: Int): MusicResponse!
+  music(pageNumber: Int, pageSize: Int, searchText: String): MusicResponse!
 }
 
 type Mutation {

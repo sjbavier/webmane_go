@@ -62,8 +62,10 @@ func (r *queryResolver) Song(ctx context.Context, id string) (*model.Song, error
 }
 
 // Music is the resolver for the music field.
-func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *int) (*model.MusicResponse, error) {
-	// panic(fmt.Errorf("not implemented: Music - music"))
+func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *int, searchText *string) (*model.MusicResponse, error) {
+	//
+	//
+	// set up vars
 	defaultPageNumber := 1
 	defaultPageSize := 10
 
@@ -75,17 +77,38 @@ func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *in
 	}
 
 	offset := (*pageNumber - 1) * *pageSize
+	var countArgs []interface{}
+	var args []interface{}
 
+	//
+	//
 	// Query to get the total item count
-	countSQL := `SELECT COUNT(*) FROM MUSIC`
+	var countSQL string
+	if searchText == nil {
+		countSQL = `SELECT COUNT(*) FROM MUSIC`
+	} else {
+		countSQL = `SELECT COUNT(*) FROM music WHERE path ILIKE '%' || $1 || '%' OR title ILIKE '%' || $1 || '%' OR artist ILIKE '%' || $1 || '%' OR album ILIKE '%' || $1 || '%'`
+		countArgs = append(countArgs, *searchText)
+	}
 	var totalItemsCount int
-	err := r.DB.QueryRow(ctx, countSQL).Scan(&totalItemsCount)
+	err := r.DB.QueryRow(ctx, countSQL, countArgs...).Scan(&totalItemsCount)
 	if err != nil {
 		return nil, fmt.Errorf("error getting total item count: %v", err)
 	}
 
-	sql := `SELECT * FROM MUSIC LIMIT $1 OFFSET $2`
-	rows, err := r.DB.Query(ctx, sql, pageSize, offset)
+	//
+	//
+	// Query to get the music records with the offset and limit
+	var sql string
+	if searchText == nil {
+		sql = `SELECT * FROM music LIMIT $1 OFFSET $2`
+		args = append(args, *pageSize, offset)
+	} else {
+		sql = `SELECT * FROM music WHERE path ILIKE '%' || $3 || '%' OR title ILIKE '%' || $3 || '%' OR artist ILIKE '%' || $3 || '%' OR album ILIKE '%' || $3 || '%' LIMIT $1 OFFSET $2`
+		args = append(args, *pageSize, offset, *searchText)
+	}
+
+	rows, err := r.DB.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting music")
 	}
@@ -106,7 +129,6 @@ func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *in
 	}
 
 	if err = rows.Err(); err != nil {
-
 		return nil, fmt.Errorf("error iterating %v", err)
 	}
 	// Return the MusicResult

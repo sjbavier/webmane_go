@@ -57,7 +57,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		Music func(childComplexity int, pageNumber *int, pageSize *int) int
+		Music func(childComplexity int, pageNumber *int, pageSize *int, searchText *string) int
 		Song  func(childComplexity int, id string) int
 	}
 
@@ -78,7 +78,7 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	Song(ctx context.Context, id string) (*model.Song, error)
-	Music(ctx context.Context, pageNumber *int, pageSize *int) (*model.MusicResponse, error)
+	Music(ctx context.Context, pageNumber *int, pageSize *int, searchText *string) (*model.MusicResponse, error)
 }
 
 type executableSchema struct {
@@ -136,7 +136,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Music(childComplexity, args["pageNumber"].(*int), args["pageSize"].(*int)), true
+		return e.complexity.Query.Music(childComplexity, args["pageNumber"].(*int), args["pageSize"].(*int), args["searchText"].(*string)), true
 
 	case "Query.song":
 		if e.complexity.Query.Song == nil {
@@ -382,6 +382,15 @@ func (ec *executionContext) field_Query_music_args(ctx context.Context, rawArgs 
 		}
 	}
 	args["pageSize"] = arg1
+	var arg2 *string
+	if tmp, ok := rawArgs["searchText"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("searchText"))
+		arg2, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["searchText"] = arg2
 	return args, nil
 }
 
@@ -701,7 +710,7 @@ func (ec *executionContext) _Query_music(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Music(rctx, fc.Args["pageNumber"].(*int), fc.Args["pageSize"].(*int))
+		return ec.resolvers.Query().Music(rctx, fc.Args["pageNumber"].(*int), fc.Args["pageSize"].(*int), fc.Args["searchText"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
