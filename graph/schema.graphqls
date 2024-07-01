@@ -16,6 +16,7 @@ type Song {
   album: String
   genre: String
   release_year: String
+  cover_art: String
 }
 
 type MusicResponse {
@@ -31,4 +32,5 @@ input SongInput {
   album: String
   genre: String
   release_year: String
+  cover_art: String
 }

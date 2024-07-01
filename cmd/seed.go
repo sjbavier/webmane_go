@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -143,6 +145,33 @@ func insertSong(path string, ctx *CommandContext) {
 
 		fmt.Printf("error with unmarshal: %v", errMar)
 	}
+	// Check if the file has a video stream (cover art)
+	hasCoverArt := false
+	for _, stream := range songMeta.Streams {
+		if stream.CodecType == "video" && stream.Disposition.AttachedPic == 1 {
+			hasCoverArt = true
+			break
+		}
+	}
+
+	var encodedCoverArt string
+	if hasCoverArt {
+		// Extract cover art directly into memory
+		var buf bytes.Buffer
+		errExtract := ffmpeg_go.Input(path).
+			Output("pipe:1", ffmpeg_go.KwArgs{"map": "0:v", "frames:v": 1, "f": "mjpeg"}).
+			WithOutput(&buf, os.Stdout).
+			Run()
+		if errExtract != nil {
+			fmt.Printf("error extracting cover art: %v", errExtract)
+		} else {
+			// Read and encode cover art data to base64
+			if buf.Len() > 0 {
+				encodedCoverArt = base64.StdEncoding.EncodeToString(buf.Bytes())
+			}
+		}
+	}
+
 	input := model.SongInput{
 		Path:        path,
 		Title:       &songMeta.Format.Tags.Title,
@@ -150,6 +179,7 @@ func insertSong(path string, ctx *CommandContext) {
 		Album:       &songMeta.Format.Tags.Album,
 		Genre:       &songMeta.Format.Tags.Genre,
 		ReleaseYear: &songMeta.Format.Tags.ReleaseYear,
+		CoverArt:    &encodedCoverArt,
 	}
 
 	_, err := ctx.Resolver.Mutation().UpsertSong(context.Background(), input)

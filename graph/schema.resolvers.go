@@ -35,19 +35,22 @@ func (r *mutationResolver) UpsertSong(ctx context.Context, input model.SongInput
 	if input.ReleaseYear != nil {
 		song.ReleaseYear = *input.ReleaseYear
 	}
+	if input.CoverArt != nil {
+		song.CoverArt = *input.CoverArt
+	}
 
 	if input.ID != nil && *input.ID != "" {
 		// UPDATE song
 		id, _ := strconv.ParseInt(*input.ID, 10, 64)
-		sql := `UPDATE music SET path=$2, last_update=$3, title=$4, artist=$5, album=$6, genre=$7, release_year=$8 WHERE id=$1 RETURNING id`
-		err := r.DB.QueryRow(ctx, sql, id, song.Path, song.LastUpdate, song.Title, song.Artist, song.Album, song.Genre, song.ReleaseYear).Scan(&song.ID)
+		sql := `UPDATE music SET path=$2, last_update=$3, title=$4, artist=$5, album=$6, genre=$7, cover_art=$8, release_year=$8 WHERE id=$1 RETURNING id`
+		err := r.DB.QueryRow(ctx, sql, id, song.Path, song.LastUpdate, song.Title, song.Artist, song.Album, song.Genre, song.ReleaseYear, song.CoverArt).Scan(&song.ID)
 		if err != nil {
 			return nil, fmt.Errorf("error updating song: %v\nerror: %v", song.Title, err)
 		}
 	} else {
 		// INSERT: no ID
-		sql := `INSERT INTO music (path, last_update, title, artist, album, genre, release_year) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
-		err := r.DB.QueryRow(ctx, sql, song.Path, song.LastUpdate, song.Title, song.Artist, song.Album, song.Genre, song.ReleaseYear).Scan(&song.ID)
+		sql := `INSERT INTO music (path, last_update, title, artist, album, genre, release_year, cover_art) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
+		err := r.DB.QueryRow(ctx, sql, song.Path, song.LastUpdate, song.Title, song.Artist, song.Album, song.Genre, song.ReleaseYear, song.CoverArt).Scan(&song.ID)
 		if err != nil {
 			return nil, fmt.Errorf("error updating song: %v\nerror: %v", song.Title, err)
 		}
@@ -118,7 +121,7 @@ func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *in
 	for rows.Next() {
 		var song model.Song
 		var lastUpdateTime time.Time
-		err := rows.Scan(&song.ID, &song.Path, &lastUpdateTime, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear)
+		err := rows.Scan(&song.ID, &song.Path, &lastUpdateTime, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear, &song.CoverArt)
 
 		if err != nil {
 			return nil, fmt.Errorf("error scanning song %v", err)

@@ -64,6 +64,7 @@ type ComplexityRoot struct {
 	Song struct {
 		Album       func(childComplexity int) int
 		Artist      func(childComplexity int) int
+		CoverArt    func(childComplexity int) int
 		Genre       func(childComplexity int) int
 		ID          func(childComplexity int) int
 		LastUpdate  func(childComplexity int) int
@@ -163,6 +164,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Song.Artist(childComplexity), true
+
+	case "Song.cover_art":
+		if e.complexity.Song.CoverArt == nil {
+			break
+		}
+
+		return e.complexity.Song.CoverArt(childComplexity), true
 
 	case "Song.genre":
 		if e.complexity.Song.Genre == nil {
@@ -502,6 +510,8 @@ func (ec *executionContext) fieldContext_MusicResponse_songs(ctx context.Context
 				return ec.fieldContext_Song_genre(ctx, field)
 			case "release_year":
 				return ec.fieldContext_Song_release_year(ctx, field)
+			case "cover_art":
+				return ec.fieldContext_Song_cover_art(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Song", field.Name)
 		},
@@ -608,6 +618,8 @@ func (ec *executionContext) fieldContext_Mutation_upsertSong(ctx context.Context
 				return ec.fieldContext_Song_genre(ctx, field)
 			case "release_year":
 				return ec.fieldContext_Song_release_year(ctx, field)
+			case "cover_art":
+				return ec.fieldContext_Song_cover_art(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Song", field.Name)
 		},
@@ -678,6 +690,8 @@ func (ec *executionContext) fieldContext_Query_song(ctx context.Context, field g
 				return ec.fieldContext_Song_genre(ctx, field)
 			case "release_year":
 				return ec.fieldContext_Song_release_year(ctx, field)
+			case "cover_art":
+				return ec.fieldContext_Song_cover_art(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Song", field.Name)
 		},
@@ -1211,6 +1225,47 @@ func (ec *executionContext) _Song_release_year(ctx context.Context, field graphq
 }
 
 func (ec *executionContext) fieldContext_Song_release_year(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Song",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Song_cover_art(ctx context.Context, field graphql.CollectedField, obj *model.Song) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Song_cover_art(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CoverArt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Song_cover_art(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Song",
 		Field:      field,
@@ -3003,7 +3058,7 @@ func (ec *executionContext) unmarshalInputSongInput(ctx context.Context, obj int
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "path", "title", "artist", "album", "genre", "release_year"}
+	fieldsInOrder := [...]string{"id", "path", "title", "artist", "album", "genre", "release_year", "cover_art"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3059,6 +3114,13 @@ func (ec *executionContext) unmarshalInputSongInput(ctx context.Context, obj int
 				return it, err
 			}
 			it.ReleaseYear = data
+		case "cover_art":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cover_art"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CoverArt = data
 		}
 	}
 
@@ -3293,6 +3355,8 @@ func (ec *executionContext) _Song(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._Song_genre(ctx, field, obj)
 		case "release_year":
 			out.Values[i] = ec._Song_release_year(ctx, field, obj)
+		case "cover_art":
+			out.Values[i] = ec._Song_cover_art(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

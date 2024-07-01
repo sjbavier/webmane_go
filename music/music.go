@@ -31,8 +31,8 @@ func GetMusic(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		var song model.Song
 		var lastUpdateTime time.Time
-		sql := `SELECT id, path, last_update, title, artist, album, genre, release_year FROM MUSIC WHERE id = $1`
-		err := dbpool.QueryRow(ctx, sql, musicId).Scan(&song.ID, &song.Path, &lastUpdateTime, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear)
+		sql := `SELECT id, path, last_update, title, artist, album, genre, release_year, cover_art FROM MUSIC WHERE id = $1`
+		err := dbpool.QueryRow(ctx, sql, musicId).Scan(&song.ID, &song.Path, &lastUpdateTime, &song.Title, &song.Artist, &song.Album, &song.Genre, &song.ReleaseYear, &song.CoverArt)
 		if err != nil {
 			http.Error(w, "Error getting music: "+err.Error(), http.StatusInternalServerError)
 			return

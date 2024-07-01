@@ -21,4 +21,5 @@ type SongInput struct {
 	Album       *string `json:"album,omitempty"`
 	Genre       *string `json:"genre,omitempty"`
 	ReleaseYear *string `json:"release_year,omitempty"`
+	CoverArt    *string `json:"cover_art,omitempty"`
 }

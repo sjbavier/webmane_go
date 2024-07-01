@@ -9,4 +9,5 @@ type Song struct {
 	Album       string
 	Genre       string
 	ReleaseYear string
+	CoverArt    string
 }
