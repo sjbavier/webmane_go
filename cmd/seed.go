@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"webmane_go/graph"
 	"webmane_go/graph/model"
 	"webmane_go/music"
@@ -97,6 +99,10 @@ type Tag struct {
 }
 
 func (ctx *CommandContext) seedMusic() error {
+	// Use a wait group to wait for all goroutines to finish
+	var wg sync.WaitGroup
+	// Use a semaphore to limit the number of concurrent goroutines
+	semaphore := make(chan struct{}, runtime.NumCPU())
 
 	errWalk := filepath.Walk(music.BaseDirectory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -110,14 +116,19 @@ func (ctx *CommandContext) seedMusic() error {
 		// grab file extension
 		extension := filepath.Ext(path)
 		for _, ext := range music.Extensions {
-
 			// looping through the accepted extensions on match insert song, break loop
 			if extension == ext {
-
-				go insertSong(path, ctx)
+				// Increment the wait group counter
+				wg.Add(1)
+				// Acquire a semaphore slot
+				semaphore <- struct{}{}
+				go func(path string) {
+					defer wg.Done()
+					defer func() { <-semaphore }()
+					insertSong(path, ctx)
+				}(path)
 				break
 			}
-
 		}
 
 		return nil
@@ -126,10 +137,12 @@ func (ctx *CommandContext) seedMusic() error {
 	if errWalk != nil {
 		fmt.Printf("Error seeding song %v\n", errWalk)
 		return errWalk
-
 	}
-	fmt.Println("Done seeding")
 
+	// Wait for all goroutines to finish
+	wg.Wait()
+
+	fmt.Println("Done seeding")
 	return nil
 }
 
@@ -159,11 +172,11 @@ func insertSong(path string, ctx *CommandContext) {
 		// Extract cover art directly into memory
 		var buf bytes.Buffer
 		errExtract := ffmpeg_go.Input(path).
-			Output("pipe:1", ffmpeg_go.KwArgs{"map": "0:v", "frames:v": 1, "f": "mjpeg"}).
+			Output("pipe:1", ffmpeg_go.KwArgs{"map": "0:v?", "frames:v": 1, "f": "mjpeg"}).
 			WithOutput(&buf, os.Stdout).
 			Run()
 		if errExtract != nil {
-			fmt.Printf("error extracting cover art: %v", errExtract)
+			fmt.Printf("error extracting cover art: %v\n", errExtract)
 		} else {
 			// Read and encode cover art data to base64
 			if buf.Len() > 0 {
