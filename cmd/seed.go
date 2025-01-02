@@ -124,6 +124,7 @@ func (ctx *CommandContext) seedMusic() error {
 				semaphore <- struct{}{}
 				go func(path string) {
 					defer wg.Done()
+					// frees semaphore slot
 					defer func() { <-semaphore }()
 					insertSong(path, ctx)
 				}(path)
