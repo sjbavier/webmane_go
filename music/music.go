@@ -39,7 +39,6 @@ func GetMusic(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		song.LastUpdate = lastUpdateTime.Format(time.RFC3339)
-		// defer rows.Close()
 		extension := filepath.Ext(song.Path)
 		// Set the appropriate content type for FLAC audio
 		switch {
