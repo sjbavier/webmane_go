@@ -1,6 +1,8 @@
 package graph
 
 import (
+	"webmane_go/ent"
+
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -12,5 +14,6 @@ import (
 
 type Resolver struct {
 	DB *pgxpool.Pool
+	EntClient *ent.Client
 	// MusicStore map[string]model.Song
 }
