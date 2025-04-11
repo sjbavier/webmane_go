@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -9,9 +10,16 @@ import (
 
 	// Import the pgx stdlib driver needed by Ent for PostgreSQL
 	"entgo.io/ent/dialect"
+	"github.com/jackc/pgx/stdlib"
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
+func init() {
+	// stdlib.Driver is exported as a value so we can create a new instance.
+	sql.Register("postgres", (*stdlib.Driver)(nil))
+	// Alternatively, you might use:
+	// sql.Register("postgres", stdlib.Driver{})
+}
 // InitializeEntClient connects to the database and returns an Ent client.
 func InitializeEntClient() (*ent.Client, error) {
 	// It's better practice to get the URL from an environment variable
@@ -19,7 +27,7 @@ func InitializeEntClient() (*ent.Client, error) {
 	if dbURL == "" {
 		// Fallback to a default for local development if the env var isn't set
 		log.Println("WARNING: DATABASE_URL environment variable not set. Using default local connection.")
-		dbURL = "postgres://user:password@localhost:5432/webmane_go?sslmode=disable" // Added sslmode=disable, often needed locally
+		dbURL = "postgres://user:password@localhost:5432/webmane_go" // Added sslmode=disable, often needed locally
 	}
 
 	// Use ent.Open to create the client

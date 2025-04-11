@@ -30,7 +30,7 @@ const (
 	// FieldCoverArt holds the string denoting the cover_art field in the database.
 	FieldCoverArt = "cover_art"
 	// Table holds the table name of the music in the database.
-	Table = "musics"
+	Table = "music_ent"
 )
 
 // Columns holds all SQL columns for music fields.

@@ -3,13 +3,14 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
 
 var (
-	// MusicsColumns holds the columns for the "musics" table.
-	MusicsColumns = []*schema.Column{
+	// MusicEntColumns holds the columns for the "music_ent" table.
+	MusicEntColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "path", Type: field.TypeString, Unique: true, Size: 500},
 		{Name: "last_update", Type: field.TypeTime},
@@ -20,24 +21,27 @@ var (
 		{Name: "release_year", Type: field.TypeString, Nullable: true, Size: 50},
 		{Name: "cover_art", Type: field.TypeString, Nullable: true},
 	}
-	// MusicsTable holds the schema information for the "musics" table.
-	MusicsTable = &schema.Table{
-		Name:       "musics",
-		Columns:    MusicsColumns,
-		PrimaryKey: []*schema.Column{MusicsColumns[0]},
+	// MusicEntTable holds the schema information for the "music_ent" table.
+	MusicEntTable = &schema.Table{
+		Name:       "music_ent",
+		Columns:    MusicEntColumns,
+		PrimaryKey: []*schema.Column{MusicEntColumns[0]},
 		Indexes: []*schema.Index{
 			{
 				Name:    "music_path",
 				Unique:  false,
-				Columns: []*schema.Column{MusicsColumns[1]},
+				Columns: []*schema.Column{MusicEntColumns[1]},
 			},
 		},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
-		MusicsTable,
+		MusicEntTable,
 	}
 )
 
 func init() {
+	MusicEntTable.Annotation = &entsql.Annotation{
+		Table: "music_ent",
+	}
 }

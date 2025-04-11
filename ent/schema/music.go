@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/entsql"
+	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 )
@@ -74,4 +76,13 @@ func (Music) Indexes() []ent.Index {
 		// Corresponds to: create index if not exists idx_music_path on public.music (path);
 		index.Fields("path"),
 	}
+}
+
+// Annotations of the Music.
+func (Music) Annotations() []schema.Annotation {
+    return []schema.Annotation{
+        entsql.Annotation{ // Add this annotation
+            Table: "music_ent", // Specify your desired table name here
+        },
+    }
 }
