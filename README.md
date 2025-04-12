@@ -98,3 +98,73 @@ This project provides a backend service with the following main components:
 - Investigate how the `ffmpeg-go` dependency is used.
 - Update the WebSocket `CheckOrigin` function in `server.go` for deployment environments.
 - Explore and document the available CLI commands in the `cmd/` directory.
+
+## Overview
+
+This project provides a backend service with the following main components:
+
+1.  **GraphQL API:** Exposes queries and mutations for interacting with music data via `gqlgen`.
+    - Fetch lists of songs with pagination and search (`music` query).
+    - Create or update song entries (`upsertSong` mutation).
+    - (Planned: Fetch single song by ID - `song` query is defined but not implemented).
+2.  **Database Interaction (Ent):** Uses the **Ent framework** (`entgo.io/ent`) as an ORM.
+    - Defines database schema in Go code (`ent/schema/`).
+    - Generates a type-safe Go client for all database operations (CRUD, queries, graph traversals).
+    - Handles database connections (`db/` package).
+    - Provides schema migration capabilities (currently using `Schema.Create` for development).
+3.  **PostgreSQL Database:** Uses `pgx` (underneath Ent) to connect to and interact with a PostgreSQL database. The schema (e.g., `music_ent` table) is managed by Ent.
+
+```bash
+go generate ./ent
+```
+
+4.  **Web Server:** Uses `chi` for routing.
+    - Serves the GraphQL API at `/query`.
+    - Provides a GraphQL Playground UI at `/` for easy testing.
+    - Includes WebSocket support for potential GraphQL subscriptions (origin check currently restricted).
+    - Configured with CORS for frontend development (allowing `localhost:5173`).
+    - Includes a separate REST endpoint at `/music` (handled by the `music` package, also using the Ent client).
+5.  **Command-Line Interface (CLI):** Uses `cobra` for defining CLI commands (e.g., `seed` command for populating the database). Commands are defined in the `cmd/` directory and receive the Ent client via the GraphQL resolver.
+6.  **Dependencies:** Key dependencies include `gqlgen`, `entgo.io/ent`, `pgx`, `chi`, `cobra`, `cors`, `websocket`, and `ffmpeg-go`.
+
+## Technology Stack
+
+- **Language:** Go (version 1.21+)
+- **API:** GraphQL (`gqlgen`)
+- **ORM / Database:** Ent (`entgo.io/ent`) with PostgreSQL (`pgx/v4`)
+- **HTTP Router:** `chi`
+- **WebSockets:** `gorilla/websocket`
+- **CLI:** `cobra`
+- **CORS:** `rs/cors`
+
+## Getting Started
+
+1.  **Prerequisites:**
+    - Go (>= 1.21) installed.
+    - A running PostgreSQL database instance.
+    - (Potentially) FFmpeg installed if its features are used (e.g., by the `seed` command).
+2.  **Clone:** Clone the repository.
+3.  **Dependencies:** Install Go modules:
+    ```bash
+    go mod tidy
+    ```
+4.  **Database Setup:**
+    - Ensure your PostgreSQL server is running.
+    - Configure the database connection string. The application expects the `DATABASE_URL` environment variable (see `db/db.go`). Example: `export DATABASE_URL="postgres://user:password@host:port/database_name?sslmode=disable"`
+    - **Schema Management (Ent):**
+      - The database schema is defined as Go code in the `ent/schema/` directory.
+      - On startup (`server.go`), the application currently uses `entClient.Schema.Create` to check and potentially update the database schema based on these definitions. **Note:** This is suitable for development but **not recommended for production**. For production environments, use a dedicated migration tool like Atlas (which integrates well with Ent).
+      - The generated, type-safe database client code resides in the `ent/` directory.
+5.  **Run the Server:**
+    ```bash
+    go run .
+    ```
+    The server will start, typically on port `8080`. You can access the GraphQL Playground at `http://localhost:8080/`.
+
+## Development Commands
+
+- **Run the Web Server:**
+  ```bash
+  go run .
+  # or: go run server.go
+  ```

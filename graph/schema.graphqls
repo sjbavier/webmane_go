@@ -5,6 +5,7 @@ type Query {
 
 type Mutation {
   upsertSong(input: SongInput!): Song!
+  additivePathUpsertSong(input: SongInput!): Song!
 }
 
 type Song {
