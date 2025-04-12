@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 	"webmane_go/ent/music"
+	"webmane_go/ent/playlist"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -122,6 +123,21 @@ func (mc *MusicCreate) SetNillableCoverArt(s *string) *MusicCreate {
 		mc.SetCoverArt(*s)
 	}
 	return mc
+}
+
+// AddPlaylistIDs adds the "playlists" edge to the Playlist entity by IDs.
+func (mc *MusicCreate) AddPlaylistIDs(ids ...int) *MusicCreate {
+	mc.mutation.AddPlaylistIDs(ids...)
+	return mc
+}
+
+// AddPlaylists adds the "playlists" edges to the Playlist entity.
+func (mc *MusicCreate) AddPlaylists(p ...*Playlist) *MusicCreate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return mc.AddPlaylistIDs(ids...)
 }
 
 // Mutation returns the MusicMutation object of the builder.
@@ -260,6 +276,22 @@ func (mc *MusicCreate) createSpec() (*Music, *sqlgraph.CreateSpec) {
 	if value, ok := mc.mutation.CoverArt(); ok {
 		_spec.SetField(music.FieldCoverArt, field.TypeString, value)
 		_node.CoverArt = value
+	}
+	if nodes := mc.mutation.PlaylistsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   music.PlaylistsTable,
+			Columns: music.PlaylistsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playlist.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }

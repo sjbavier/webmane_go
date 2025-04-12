@@ -8,3 +8,6 @@ import (
 
 // Music is the predicate function for music builders.
 type Music func(*sql.Selector)
+
+// Playlist is the predicate function for playlist builders.
+type Playlist func(*sql.Selector)

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 	"webmane_go/ent/music"
+	"webmane_go/ent/playlist"
 	"webmane_go/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
@@ -168,9 +169,45 @@ func (mu *MusicUpdate) ClearCoverArt() *MusicUpdate {
 	return mu
 }
 
+// AddPlaylistIDs adds the "playlists" edge to the Playlist entity by IDs.
+func (mu *MusicUpdate) AddPlaylistIDs(ids ...int) *MusicUpdate {
+	mu.mutation.AddPlaylistIDs(ids...)
+	return mu
+}
+
+// AddPlaylists adds the "playlists" edges to the Playlist entity.
+func (mu *MusicUpdate) AddPlaylists(p ...*Playlist) *MusicUpdate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return mu.AddPlaylistIDs(ids...)
+}
+
 // Mutation returns the MusicMutation object of the builder.
 func (mu *MusicUpdate) Mutation() *MusicMutation {
 	return mu.mutation
+}
+
+// ClearPlaylists clears all "playlists" edges to the Playlist entity.
+func (mu *MusicUpdate) ClearPlaylists() *MusicUpdate {
+	mu.mutation.ClearPlaylists()
+	return mu
+}
+
+// RemovePlaylistIDs removes the "playlists" edge to Playlist entities by IDs.
+func (mu *MusicUpdate) RemovePlaylistIDs(ids ...int) *MusicUpdate {
+	mu.mutation.RemovePlaylistIDs(ids...)
+	return mu
+}
+
+// RemovePlaylists removes "playlists" edges to Playlist entities.
+func (mu *MusicUpdate) RemovePlaylists(p ...*Playlist) *MusicUpdate {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return mu.RemovePlaylistIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -297,6 +334,51 @@ func (mu *MusicUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if mu.mutation.CoverArtCleared() {
 		_spec.ClearField(music.FieldCoverArt, field.TypeString)
+	}
+	if mu.mutation.PlaylistsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   music.PlaylistsTable,
+			Columns: music.PlaylistsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playlist.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := mu.mutation.RemovedPlaylistsIDs(); len(nodes) > 0 && !mu.mutation.PlaylistsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   music.PlaylistsTable,
+			Columns: music.PlaylistsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playlist.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := mu.mutation.PlaylistsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   music.PlaylistsTable,
+			Columns: music.PlaylistsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playlist.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, mu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -458,9 +540,45 @@ func (muo *MusicUpdateOne) ClearCoverArt() *MusicUpdateOne {
 	return muo
 }
 
+// AddPlaylistIDs adds the "playlists" edge to the Playlist entity by IDs.
+func (muo *MusicUpdateOne) AddPlaylistIDs(ids ...int) *MusicUpdateOne {
+	muo.mutation.AddPlaylistIDs(ids...)
+	return muo
+}
+
+// AddPlaylists adds the "playlists" edges to the Playlist entity.
+func (muo *MusicUpdateOne) AddPlaylists(p ...*Playlist) *MusicUpdateOne {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return muo.AddPlaylistIDs(ids...)
+}
+
 // Mutation returns the MusicMutation object of the builder.
 func (muo *MusicUpdateOne) Mutation() *MusicMutation {
 	return muo.mutation
+}
+
+// ClearPlaylists clears all "playlists" edges to the Playlist entity.
+func (muo *MusicUpdateOne) ClearPlaylists() *MusicUpdateOne {
+	muo.mutation.ClearPlaylists()
+	return muo
+}
+
+// RemovePlaylistIDs removes the "playlists" edge to Playlist entities by IDs.
+func (muo *MusicUpdateOne) RemovePlaylistIDs(ids ...int) *MusicUpdateOne {
+	muo.mutation.RemovePlaylistIDs(ids...)
+	return muo
+}
+
+// RemovePlaylists removes "playlists" edges to Playlist entities.
+func (muo *MusicUpdateOne) RemovePlaylists(p ...*Playlist) *MusicUpdateOne {
+	ids := make([]int, len(p))
+	for i := range p {
+		ids[i] = p[i].ID
+	}
+	return muo.RemovePlaylistIDs(ids...)
 }
 
 // Where appends a list predicates to the MusicUpdate builder.
@@ -617,6 +735,51 @@ func (muo *MusicUpdateOne) sqlSave(ctx context.Context) (_node *Music, err error
 	}
 	if muo.mutation.CoverArtCleared() {
 		_spec.ClearField(music.FieldCoverArt, field.TypeString)
+	}
+	if muo.mutation.PlaylistsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   music.PlaylistsTable,
+			Columns: music.PlaylistsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playlist.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := muo.mutation.RemovedPlaylistsIDs(); len(nodes) > 0 && !muo.mutation.PlaylistsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   music.PlaylistsTable,
+			Columns: music.PlaylistsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playlist.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := muo.mutation.PlaylistsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   music.PlaylistsTable,
+			Columns: music.PlaylistsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(playlist.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &Music{config: muo.config}
 	_spec.Assign = _node.assignValues

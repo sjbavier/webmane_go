@@ -20,6 +20,18 @@ func (f MusicFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MusicMutation", m)
 }
 
+// The PlaylistFunc type is an adapter to allow the use of ordinary
+// function as Playlist mutator.
+type PlaylistFunc func(context.Context, *ent.PlaylistMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PlaylistFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PlaylistMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PlaylistMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

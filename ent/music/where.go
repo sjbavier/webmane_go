@@ -7,6 +7,7 @@ import (
 	"webmane_go/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 // ID filters vertices based on their ID field.
@@ -647,6 +648,29 @@ func CoverArtEqualFold(v string) predicate.Music {
 // CoverArtContainsFold applies the ContainsFold predicate on the "cover_art" field.
 func CoverArtContainsFold(v string) predicate.Music {
 	return predicate.Music(sql.FieldContainsFold(FieldCoverArt, v))
+}
+
+// HasPlaylists applies the HasEdge predicate on the "playlists" edge.
+func HasPlaylists() predicate.Music {
+	return predicate.Music(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, PlaylistsTable, PlaylistsPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPlaylistsWith applies the HasEdge predicate on the "playlists" edge with a given conditions (other predicates).
+func HasPlaylistsWith(preds ...predicate.Playlist) predicate.Music {
+	return predicate.Music(func(s *sql.Selector) {
+		step := newPlaylistsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
 }
 
 // And groups predicates with the AND operator between them.

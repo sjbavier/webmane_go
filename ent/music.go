@@ -32,8 +32,29 @@ type Music struct {
 	// ReleaseYear holds the value of the "release_year" field.
 	ReleaseYear string `json:"release_year,omitempty"`
 	// CoverArt holds the value of the "cover_art" field.
-	CoverArt     string `json:"cover_art,omitempty"`
+	CoverArt string `json:"cover_art,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the MusicQuery when eager-loading is set.
+	Edges        MusicEdges `json:"edges"`
 	selectValues sql.SelectValues
+}
+
+// MusicEdges holds the relations/edges for other nodes in the graph.
+type MusicEdges struct {
+	// Playlists holds the value of the playlists edge.
+	Playlists []*Playlist `json:"playlists,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [1]bool
+}
+
+// PlaylistsOrErr returns the Playlists value or an error if the edge
+// was not loaded in eager-loading.
+func (e MusicEdges) PlaylistsOrErr() ([]*Playlist, error) {
+	if e.loadedTypes[0] {
+		return e.Playlists, nil
+	}
+	return nil, &NotLoadedError{edge: "playlists"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -127,6 +148,11 @@ func (m *Music) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (m *Music) Value(name string) (ent.Value, error) {
 	return m.selectValues.Get(name)
+}
+
+// QueryPlaylists queries the "playlists" edge of the Music entity.
+func (m *Music) QueryPlaylists() *PlaylistQuery {
+	return NewMusicClient(m.config).QueryPlaylists(m)
 }
 
 // Update returns a builder for updating this Music.

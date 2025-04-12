@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sync"
 	"webmane_go/ent/music"
+	"webmane_go/ent/playlist"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
@@ -73,7 +74,8 @@ var (
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			music.Table: music.ValidColumn,
+			music.Table:    music.ValidColumn,
+			playlist.Table: playlist.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)

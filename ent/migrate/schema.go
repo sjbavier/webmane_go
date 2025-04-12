@@ -34,9 +34,57 @@ var (
 			},
 		},
 	}
+	// PlaylistsColumns holds the columns for the "playlists" table.
+	PlaylistsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 255},
+		{Name: "last_update", Type: field.TypeTime},
+		{Name: "last_accessed", Type: field.TypeTime, Nullable: true},
+		{Name: "cover_art", Type: field.TypeString, Nullable: true},
+	}
+	// PlaylistsTable holds the schema information for the "playlists" table.
+	PlaylistsTable = &schema.Table{
+		Name:       "playlists",
+		Columns:    PlaylistsColumns,
+		PrimaryKey: []*schema.Column{PlaylistsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "playlist_name",
+				Unique:  false,
+				Columns: []*schema.Column{PlaylistsColumns[1]},
+			},
+		},
+	}
+	// PlaylistSongsColumns holds the columns for the "playlist_songs" table.
+	PlaylistSongsColumns = []*schema.Column{
+		{Name: "playlist_id", Type: field.TypeInt},
+		{Name: "music_id", Type: field.TypeInt},
+	}
+	// PlaylistSongsTable holds the schema information for the "playlist_songs" table.
+	PlaylistSongsTable = &schema.Table{
+		Name:       "playlist_songs",
+		Columns:    PlaylistSongsColumns,
+		PrimaryKey: []*schema.Column{PlaylistSongsColumns[0], PlaylistSongsColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "playlist_songs_playlist_id",
+				Columns:    []*schema.Column{PlaylistSongsColumns[0]},
+				RefColumns: []*schema.Column{PlaylistsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "playlist_songs_music_id",
+				Columns:    []*schema.Column{PlaylistSongsColumns[1]},
+				RefColumns: []*schema.Column{MusicEntColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		MusicEntTable,
+		PlaylistsTable,
+		PlaylistSongsTable,
 	}
 )
 
@@ -44,4 +92,9 @@ func init() {
 	MusicEntTable.Annotation = &entsql.Annotation{
 		Table: "music_ent",
 	}
+	PlaylistsTable.Annotation = &entsql.Annotation{
+		Table: "playlists",
+	}
+	PlaylistSongsTable.ForeignKeys[0].RefTable = PlaylistsTable
+	PlaylistSongsTable.ForeignKeys[1].RefTable = MusicEntTable
 }

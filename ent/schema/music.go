@@ -6,6 +6,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema"
+	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 )
@@ -22,7 +23,7 @@ func (Music) Fields() []ent.Field {
 
 		field.String("path").
 			MaxLen(500).
-			Unique(). // Corresponds to unique constraint
+			Unique().   // Corresponds to unique constraint
 			NotEmpty(), // Assuming path should not be empty
 
 		// Use time.Time for dates/timestamps
@@ -30,7 +31,6 @@ func (Music) Fields() []ent.Field {
 		field.Time("last_update").
 			Default(time.Now).
 			UpdateDefault(time.Now),
-
 
 		field.String("title").
 			MaxLen(500).
@@ -56,18 +56,20 @@ func (Music) Fields() []ent.Field {
 		// Use string for TEXT type
 		field.String("cover_art").
 			Optional(),
-			// If you need truly unlimited text (like TEXT in Postgres),
-			// you might need SchemaType, but often default string is fine.
-			// SchemaType(map[string]string{
-			// 	dialect.Postgres: "text",
-			// }),
+		// If you need truly unlimited text (like TEXT in Postgres),
+		// you might need SchemaType, but often default string is fine.
+		// SchemaType(map[string]string{
+		// 	dialect.Postgres: "text",
+		// }),
 	}
 }
 
 // Edges of the Music.
 func (Music) Edges() []ent.Edge {
-	// No relationships defined in your SQL schema yet
-	return nil
+	return []ent.Edge{
+		edge.From("playlists", Playlist.Type).
+			Ref("songs"),
+	}
 }
 
 // Indexes of the Music.
@@ -80,9 +82,9 @@ func (Music) Indexes() []ent.Index {
 
 // Annotations of the Music.
 func (Music) Annotations() []schema.Annotation {
-    return []schema.Annotation{
-        entsql.Annotation{ // Add this annotation
-            Table: "music_ent", // Specify your desired table name here
-        },
-    }
+	return []schema.Annotation{
+		entsql.Annotation{ // Add this annotation
+			Table: "music_ent", // Specify your desired table name here
+		},
+	}
 }

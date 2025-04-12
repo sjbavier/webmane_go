@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 	"webmane_go/ent/music"
+	"webmane_go/ent/playlist"
 	"webmane_go/ent/predicate"
 
 	"entgo.io/ent"
@@ -24,27 +25,31 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeMusic = "Music"
+	TypeMusic    = "Music"
+	TypePlaylist = "Playlist"
 )
 
 // MusicMutation represents an operation that mutates the Music nodes in the graph.
 type MusicMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	_path         *string
-	last_update   *time.Time
-	title         *string
-	artist        *string
-	album         *string
-	genre         *string
-	release_year  *string
-	cover_art     *string
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*Music, error)
-	predicates    []predicate.Music
+	op               Op
+	typ              string
+	id               *int
+	_path            *string
+	last_update      *time.Time
+	title            *string
+	artist           *string
+	album            *string
+	genre            *string
+	release_year     *string
+	cover_art        *string
+	clearedFields    map[string]struct{}
+	playlists        map[int]struct{}
+	removedplaylists map[int]struct{}
+	clearedplaylists bool
+	done             bool
+	oldValue         func(context.Context) (*Music, error)
+	predicates       []predicate.Music
 }
 
 var _ ent.Mutation = (*MusicMutation)(nil)
@@ -511,6 +516,60 @@ func (m *MusicMutation) ResetCoverArt() {
 	delete(m.clearedFields, music.FieldCoverArt)
 }
 
+// AddPlaylistIDs adds the "playlists" edge to the Playlist entity by ids.
+func (m *MusicMutation) AddPlaylistIDs(ids ...int) {
+	if m.playlists == nil {
+		m.playlists = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.playlists[ids[i]] = struct{}{}
+	}
+}
+
+// ClearPlaylists clears the "playlists" edge to the Playlist entity.
+func (m *MusicMutation) ClearPlaylists() {
+	m.clearedplaylists = true
+}
+
+// PlaylistsCleared reports if the "playlists" edge to the Playlist entity was cleared.
+func (m *MusicMutation) PlaylistsCleared() bool {
+	return m.clearedplaylists
+}
+
+// RemovePlaylistIDs removes the "playlists" edge to the Playlist entity by IDs.
+func (m *MusicMutation) RemovePlaylistIDs(ids ...int) {
+	if m.removedplaylists == nil {
+		m.removedplaylists = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.playlists, ids[i])
+		m.removedplaylists[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedPlaylists returns the removed IDs of the "playlists" edge to the Playlist entity.
+func (m *MusicMutation) RemovedPlaylistsIDs() (ids []int) {
+	for id := range m.removedplaylists {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// PlaylistsIDs returns the "playlists" edge IDs in the mutation.
+func (m *MusicMutation) PlaylistsIDs() (ids []int) {
+	for id := range m.playlists {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetPlaylists resets all changes to the "playlists" edge.
+func (m *MusicMutation) ResetPlaylists() {
+	m.playlists = nil
+	m.clearedplaylists = false
+	m.removedplaylists = nil
+}
+
 // Where appends a list predicates to the MusicMutation builder.
 func (m *MusicMutation) Where(ps ...predicate.Music) {
 	m.predicates = append(m.predicates, ps...)
@@ -802,48 +861,706 @@ func (m *MusicMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *MusicMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.playlists != nil {
+		edges = append(edges, music.EdgePlaylists)
+	}
 	return edges
 }
 
 // AddedIDs returns all IDs (to other nodes) that were added for the given edge
 // name in this mutation.
 func (m *MusicMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case music.EdgePlaylists:
+		ids := make([]ent.Value, 0, len(m.playlists))
+		for id := range m.playlists {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *MusicMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.removedplaylists != nil {
+		edges = append(edges, music.EdgePlaylists)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *MusicMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case music.EdgePlaylists:
+		ids := make([]ent.Value, 0, len(m.removedplaylists))
+		for id := range m.removedplaylists {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *MusicMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 1)
+	if m.clearedplaylists {
+		edges = append(edges, music.EdgePlaylists)
+	}
 	return edges
 }
 
 // EdgeCleared returns a boolean which indicates if the edge with the given name
 // was cleared in this mutation.
 func (m *MusicMutation) EdgeCleared(name string) bool {
+	switch name {
+	case music.EdgePlaylists:
+		return m.clearedplaylists
+	}
 	return false
 }
 
 // ClearEdge clears the value of the edge with the given name. It returns an error
 // if that edge is not defined in the schema.
 func (m *MusicMutation) ClearEdge(name string) error {
+	switch name {
+	}
 	return fmt.Errorf("unknown Music unique edge %s", name)
 }
 
 // ResetEdge resets all changes to the edge with the given name in this mutation.
 // It returns an error if the edge is not defined in the schema.
 func (m *MusicMutation) ResetEdge(name string) error {
+	switch name {
+	case music.EdgePlaylists:
+		m.ResetPlaylists()
+		return nil
+	}
 	return fmt.Errorf("unknown Music edge %s", name)
+}
+
+// PlaylistMutation represents an operation that mutates the Playlist nodes in the graph.
+type PlaylistMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	name          *string
+	last_update   *time.Time
+	last_accessed *time.Time
+	cover_art     *string
+	clearedFields map[string]struct{}
+	songs         map[int]struct{}
+	removedsongs  map[int]struct{}
+	clearedsongs  bool
+	done          bool
+	oldValue      func(context.Context) (*Playlist, error)
+	predicates    []predicate.Playlist
+}
+
+var _ ent.Mutation = (*PlaylistMutation)(nil)
+
+// playlistOption allows management of the mutation configuration using functional options.
+type playlistOption func(*PlaylistMutation)
+
+// newPlaylistMutation creates new mutation for the Playlist entity.
+func newPlaylistMutation(c config, op Op, opts ...playlistOption) *PlaylistMutation {
+	m := &PlaylistMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePlaylist,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPlaylistID sets the ID field of the mutation.
+func withPlaylistID(id int) playlistOption {
+	return func(m *PlaylistMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Playlist
+		)
+		m.oldValue = func(ctx context.Context) (*Playlist, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Playlist.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPlaylist sets the old Playlist of the mutation.
+func withPlaylist(node *Playlist) playlistOption {
+	return func(m *PlaylistMutation) {
+		m.oldValue = func(context.Context) (*Playlist, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PlaylistMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PlaylistMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PlaylistMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PlaylistMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Playlist.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *PlaylistMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *PlaylistMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Playlist entity.
+// If the Playlist object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaylistMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *PlaylistMutation) ResetName() {
+	m.name = nil
+}
+
+// SetLastUpdate sets the "last_update" field.
+func (m *PlaylistMutation) SetLastUpdate(t time.Time) {
+	m.last_update = &t
+}
+
+// LastUpdate returns the value of the "last_update" field in the mutation.
+func (m *PlaylistMutation) LastUpdate() (r time.Time, exists bool) {
+	v := m.last_update
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastUpdate returns the old "last_update" field's value of the Playlist entity.
+// If the Playlist object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaylistMutation) OldLastUpdate(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastUpdate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastUpdate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastUpdate: %w", err)
+	}
+	return oldValue.LastUpdate, nil
+}
+
+// ResetLastUpdate resets all changes to the "last_update" field.
+func (m *PlaylistMutation) ResetLastUpdate() {
+	m.last_update = nil
+}
+
+// SetLastAccessed sets the "last_accessed" field.
+func (m *PlaylistMutation) SetLastAccessed(t time.Time) {
+	m.last_accessed = &t
+}
+
+// LastAccessed returns the value of the "last_accessed" field in the mutation.
+func (m *PlaylistMutation) LastAccessed() (r time.Time, exists bool) {
+	v := m.last_accessed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastAccessed returns the old "last_accessed" field's value of the Playlist entity.
+// If the Playlist object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaylistMutation) OldLastAccessed(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastAccessed is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastAccessed requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastAccessed: %w", err)
+	}
+	return oldValue.LastAccessed, nil
+}
+
+// ClearLastAccessed clears the value of the "last_accessed" field.
+func (m *PlaylistMutation) ClearLastAccessed() {
+	m.last_accessed = nil
+	m.clearedFields[playlist.FieldLastAccessed] = struct{}{}
+}
+
+// LastAccessedCleared returns if the "last_accessed" field was cleared in this mutation.
+func (m *PlaylistMutation) LastAccessedCleared() bool {
+	_, ok := m.clearedFields[playlist.FieldLastAccessed]
+	return ok
+}
+
+// ResetLastAccessed resets all changes to the "last_accessed" field.
+func (m *PlaylistMutation) ResetLastAccessed() {
+	m.last_accessed = nil
+	delete(m.clearedFields, playlist.FieldLastAccessed)
+}
+
+// SetCoverArt sets the "cover_art" field.
+func (m *PlaylistMutation) SetCoverArt(s string) {
+	m.cover_art = &s
+}
+
+// CoverArt returns the value of the "cover_art" field in the mutation.
+func (m *PlaylistMutation) CoverArt() (r string, exists bool) {
+	v := m.cover_art
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCoverArt returns the old "cover_art" field's value of the Playlist entity.
+// If the Playlist object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PlaylistMutation) OldCoverArt(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCoverArt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCoverArt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCoverArt: %w", err)
+	}
+	return oldValue.CoverArt, nil
+}
+
+// ClearCoverArt clears the value of the "cover_art" field.
+func (m *PlaylistMutation) ClearCoverArt() {
+	m.cover_art = nil
+	m.clearedFields[playlist.FieldCoverArt] = struct{}{}
+}
+
+// CoverArtCleared returns if the "cover_art" field was cleared in this mutation.
+func (m *PlaylistMutation) CoverArtCleared() bool {
+	_, ok := m.clearedFields[playlist.FieldCoverArt]
+	return ok
+}
+
+// ResetCoverArt resets all changes to the "cover_art" field.
+func (m *PlaylistMutation) ResetCoverArt() {
+	m.cover_art = nil
+	delete(m.clearedFields, playlist.FieldCoverArt)
+}
+
+// AddSongIDs adds the "songs" edge to the Music entity by ids.
+func (m *PlaylistMutation) AddSongIDs(ids ...int) {
+	if m.songs == nil {
+		m.songs = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.songs[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSongs clears the "songs" edge to the Music entity.
+func (m *PlaylistMutation) ClearSongs() {
+	m.clearedsongs = true
+}
+
+// SongsCleared reports if the "songs" edge to the Music entity was cleared.
+func (m *PlaylistMutation) SongsCleared() bool {
+	return m.clearedsongs
+}
+
+// RemoveSongIDs removes the "songs" edge to the Music entity by IDs.
+func (m *PlaylistMutation) RemoveSongIDs(ids ...int) {
+	if m.removedsongs == nil {
+		m.removedsongs = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.songs, ids[i])
+		m.removedsongs[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSongs returns the removed IDs of the "songs" edge to the Music entity.
+func (m *PlaylistMutation) RemovedSongsIDs() (ids []int) {
+	for id := range m.removedsongs {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SongsIDs returns the "songs" edge IDs in the mutation.
+func (m *PlaylistMutation) SongsIDs() (ids []int) {
+	for id := range m.songs {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSongs resets all changes to the "songs" edge.
+func (m *PlaylistMutation) ResetSongs() {
+	m.songs = nil
+	m.clearedsongs = false
+	m.removedsongs = nil
+}
+
+// Where appends a list predicates to the PlaylistMutation builder.
+func (m *PlaylistMutation) Where(ps ...predicate.Playlist) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PlaylistMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PlaylistMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Playlist, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PlaylistMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PlaylistMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Playlist).
+func (m *PlaylistMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PlaylistMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.name != nil {
+		fields = append(fields, playlist.FieldName)
+	}
+	if m.last_update != nil {
+		fields = append(fields, playlist.FieldLastUpdate)
+	}
+	if m.last_accessed != nil {
+		fields = append(fields, playlist.FieldLastAccessed)
+	}
+	if m.cover_art != nil {
+		fields = append(fields, playlist.FieldCoverArt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PlaylistMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case playlist.FieldName:
+		return m.Name()
+	case playlist.FieldLastUpdate:
+		return m.LastUpdate()
+	case playlist.FieldLastAccessed:
+		return m.LastAccessed()
+	case playlist.FieldCoverArt:
+		return m.CoverArt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PlaylistMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case playlist.FieldName:
+		return m.OldName(ctx)
+	case playlist.FieldLastUpdate:
+		return m.OldLastUpdate(ctx)
+	case playlist.FieldLastAccessed:
+		return m.OldLastAccessed(ctx)
+	case playlist.FieldCoverArt:
+		return m.OldCoverArt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Playlist field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaylistMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case playlist.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case playlist.FieldLastUpdate:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastUpdate(v)
+		return nil
+	case playlist.FieldLastAccessed:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastAccessed(v)
+		return nil
+	case playlist.FieldCoverArt:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCoverArt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Playlist field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PlaylistMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PlaylistMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PlaylistMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Playlist numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PlaylistMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(playlist.FieldLastAccessed) {
+		fields = append(fields, playlist.FieldLastAccessed)
+	}
+	if m.FieldCleared(playlist.FieldCoverArt) {
+		fields = append(fields, playlist.FieldCoverArt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PlaylistMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PlaylistMutation) ClearField(name string) error {
+	switch name {
+	case playlist.FieldLastAccessed:
+		m.ClearLastAccessed()
+		return nil
+	case playlist.FieldCoverArt:
+		m.ClearCoverArt()
+		return nil
+	}
+	return fmt.Errorf("unknown Playlist nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PlaylistMutation) ResetField(name string) error {
+	switch name {
+	case playlist.FieldName:
+		m.ResetName()
+		return nil
+	case playlist.FieldLastUpdate:
+		m.ResetLastUpdate()
+		return nil
+	case playlist.FieldLastAccessed:
+		m.ResetLastAccessed()
+		return nil
+	case playlist.FieldCoverArt:
+		m.ResetCoverArt()
+		return nil
+	}
+	return fmt.Errorf("unknown Playlist field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PlaylistMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.songs != nil {
+		edges = append(edges, playlist.EdgeSongs)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PlaylistMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case playlist.EdgeSongs:
+		ids := make([]ent.Value, 0, len(m.songs))
+		for id := range m.songs {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PlaylistMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedsongs != nil {
+		edges = append(edges, playlist.EdgeSongs)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PlaylistMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case playlist.EdgeSongs:
+		ids := make([]ent.Value, 0, len(m.removedsongs))
+		for id := range m.removedsongs {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PlaylistMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedsongs {
+		edges = append(edges, playlist.EdgeSongs)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PlaylistMutation) EdgeCleared(name string) bool {
+	switch name {
+	case playlist.EdgeSongs:
+		return m.clearedsongs
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PlaylistMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Playlist unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PlaylistMutation) ResetEdge(name string) error {
+	switch name {
+	case playlist.EdgeSongs:
+		m.ResetSongs()
+		return nil
+	}
+	return fmt.Errorf("unknown Playlist edge %s", name)
 }

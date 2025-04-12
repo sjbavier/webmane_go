@@ -4,9 +4,11 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 	"webmane_go/ent/music"
+	"webmane_go/ent/playlist"
 	"webmane_go/ent/predicate"
 
 	"entgo.io/ent"
@@ -18,10 +20,11 @@ import (
 // MusicQuery is the builder for querying Music entities.
 type MusicQuery struct {
 	config
-	ctx        *QueryContext
-	order      []music.OrderOption
-	inters     []Interceptor
-	predicates []predicate.Music
+	ctx           *QueryContext
+	order         []music.OrderOption
+	inters        []Interceptor
+	predicates    []predicate.Music
+	withPlaylists *PlaylistQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -56,6 +59,28 @@ func (mq *MusicQuery) Unique(unique bool) *MusicQuery {
 func (mq *MusicQuery) Order(o ...music.OrderOption) *MusicQuery {
 	mq.order = append(mq.order, o...)
 	return mq
+}
+
+// QueryPlaylists chains the current query on the "playlists" edge.
+func (mq *MusicQuery) QueryPlaylists() *PlaylistQuery {
+	query := (&PlaylistClient{config: mq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := mq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := mq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(music.Table, music.FieldID, selector),
+			sqlgraph.To(playlist.Table, playlist.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, music.PlaylistsTable, music.PlaylistsPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(mq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
 }
 
 // First returns the first Music entity from the query.
@@ -245,15 +270,27 @@ func (mq *MusicQuery) Clone() *MusicQuery {
 		return nil
 	}
 	return &MusicQuery{
-		config:     mq.config,
-		ctx:        mq.ctx.Clone(),
-		order:      append([]music.OrderOption{}, mq.order...),
-		inters:     append([]Interceptor{}, mq.inters...),
-		predicates: append([]predicate.Music{}, mq.predicates...),
+		config:        mq.config,
+		ctx:           mq.ctx.Clone(),
+		order:         append([]music.OrderOption{}, mq.order...),
+		inters:        append([]Interceptor{}, mq.inters...),
+		predicates:    append([]predicate.Music{}, mq.predicates...),
+		withPlaylists: mq.withPlaylists.Clone(),
 		// clone intermediate query.
 		sql:  mq.sql.Clone(),
 		path: mq.path,
 	}
+}
+
+// WithPlaylists tells the query-builder to eager-load the nodes that are connected to
+// the "playlists" edge. The optional arguments are used to configure the query builder of the edge.
+func (mq *MusicQuery) WithPlaylists(opts ...func(*PlaylistQuery)) *MusicQuery {
+	query := (&PlaylistClient{config: mq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	mq.withPlaylists = query
+	return mq
 }
 
 // GroupBy is used to group vertices by one or more fields/columns.
@@ -332,8 +369,11 @@ func (mq *MusicQuery) prepareQuery(ctx context.Context) error {
 
 func (mq *MusicQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Music, error) {
 	var (
-		nodes = []*Music{}
-		_spec = mq.querySpec()
+		nodes       = []*Music{}
+		_spec       = mq.querySpec()
+		loadedTypes = [1]bool{
+			mq.withPlaylists != nil,
+		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Music).scanValues(nil, columns)
@@ -341,6 +381,7 @@ func (mq *MusicQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Music,
 	_spec.Assign = func(columns []string, values []any) error {
 		node := &Music{config: mq.config}
 		nodes = append(nodes, node)
+		node.Edges.loadedTypes = loadedTypes
 		return node.assignValues(columns, values)
 	}
 	for i := range hooks {
@@ -352,7 +393,76 @@ func (mq *MusicQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Music,
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
+	if query := mq.withPlaylists; query != nil {
+		if err := mq.loadPlaylists(ctx, query, nodes,
+			func(n *Music) { n.Edges.Playlists = []*Playlist{} },
+			func(n *Music, e *Playlist) { n.Edges.Playlists = append(n.Edges.Playlists, e) }); err != nil {
+			return nil, err
+		}
+	}
 	return nodes, nil
+}
+
+func (mq *MusicQuery) loadPlaylists(ctx context.Context, query *PlaylistQuery, nodes []*Music, init func(*Music), assign func(*Music, *Playlist)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int]*Music)
+	nids := make(map[int]map[*Music]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(music.PlaylistsTable)
+		s.Join(joinT).On(s.C(playlist.FieldID), joinT.C(music.PlaylistsPrimaryKey[0]))
+		s.Where(sql.InValues(joinT.C(music.PlaylistsPrimaryKey[1]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(music.PlaylistsPrimaryKey[1]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := int(values[0].(*sql.NullInt64).Int64)
+				inValue := int(values[1].(*sql.NullInt64).Int64)
+				if nids[inValue] == nil {
+					nids[inValue] = map[*Music]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*Playlist](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "playlists" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
+	}
+	return nil
 }
 
 func (mq *MusicQuery) sqlCount(ctx context.Context) (int, error) {

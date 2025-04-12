@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 const (
@@ -29,8 +30,15 @@ const (
 	FieldReleaseYear = "release_year"
 	// FieldCoverArt holds the string denoting the cover_art field in the database.
 	FieldCoverArt = "cover_art"
+	// EdgePlaylists holds the string denoting the playlists edge name in mutations.
+	EdgePlaylists = "playlists"
 	// Table holds the table name of the music in the database.
 	Table = "music_ent"
+	// PlaylistsTable is the table that holds the playlists relation/edge. The primary key declared below.
+	PlaylistsTable = "playlist_songs"
+	// PlaylistsInverseTable is the table name for the Playlist entity.
+	// It exists in this package in order to avoid circular dependency with the "playlist" package.
+	PlaylistsInverseTable = "playlists"
 )
 
 // Columns holds all SQL columns for music fields.
@@ -45,6 +53,12 @@ var Columns = []string{
 	FieldReleaseYear,
 	FieldCoverArt,
 }
+
+var (
+	// PlaylistsPrimaryKey and PlaylistsColumn2 are the table columns denoting the
+	// primary key for the playlists relation (M2M).
+	PlaylistsPrimaryKey = []string{"playlist_id", "music_id"}
+)
 
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {
@@ -121,4 +135,25 @@ func ByReleaseYear(opts ...sql.OrderTermOption) OrderOption {
 // ByCoverArt orders the results by the cover_art field.
 func ByCoverArt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCoverArt, opts...).ToFunc()
+}
+
+// ByPlaylistsCount orders the results by playlists count.
+func ByPlaylistsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newPlaylistsStep(), opts...)
+	}
+}
+
+// ByPlaylists orders the results by playlists terms.
+func ByPlaylists(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPlaylistsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+func newPlaylistsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PlaylistsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, true, PlaylistsTable, PlaylistsPrimaryKey...),
+	)
 }

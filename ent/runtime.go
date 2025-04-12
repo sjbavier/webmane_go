@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 	"webmane_go/ent/music"
+	"webmane_go/ent/playlist"
 	"webmane_go/ent/schema"
 )
 
@@ -58,4 +59,30 @@ func init() {
 	musicDescReleaseYear := musicFields[6].Descriptor()
 	// music.ReleaseYearValidator is a validator for the "release_year" field. It is called by the builders before save.
 	music.ReleaseYearValidator = musicDescReleaseYear.Validators[0].(func(string) error)
+	playlistFields := schema.Playlist{}.Fields()
+	_ = playlistFields
+	// playlistDescName is the schema descriptor for name field.
+	playlistDescName := playlistFields[0].Descriptor()
+	// playlist.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	playlist.NameValidator = func() func(string) error {
+		validators := playlistDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// playlistDescLastUpdate is the schema descriptor for last_update field.
+	playlistDescLastUpdate := playlistFields[1].Descriptor()
+	// playlist.DefaultLastUpdate holds the default value on creation for the last_update field.
+	playlist.DefaultLastUpdate = playlistDescLastUpdate.Default.(func() time.Time)
+	// playlist.UpdateDefaultLastUpdate holds the default value on update for the last_update field.
+	playlist.UpdateDefaultLastUpdate = playlistDescLastUpdate.UpdateDefault.(func() time.Time)
 }

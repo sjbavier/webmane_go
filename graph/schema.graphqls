@@ -1,13 +1,31 @@
 type Query {
+  # music
   song(id: ID!): Song
   music(pageNumber: Int, pageSize: Int, searchText: String): MusicResponse!
+
+  # playlists
+  playlist(id: ID!): Playlist
+  playlists(
+    pageNumber: Int
+    pageSize: Int
+    searchText: String
+  ): PlaylistResponse
 }
 
 type Mutation {
   upsertSong(input: SongInput!): Song!
   additivePathUpsertSong(input: SongInput!): Song!
+
+  # --- New Playlist Mutations ---
+  upsertPlaylist(input: PlaylistInput!): Playlist! # Create or update a playlist
+  deletePlaylist(id: ID!): Boolean! # Delete a playlist
+  addSongToPlaylist(playlistId: ID!, songId: ID!): Playlist! # Add a song to a playlist
+  removeSongFromPlaylist(playlistId: ID!, songId: ID!): Playlist! # Remove a song from a playlist
 }
 
+#  ---------------------------------
+#  ---  Song Models ---
+#  ---------------------------------
 type Song {
   id: ID!
   path: String!
@@ -34,4 +52,31 @@ input SongInput {
   genre: String
   release_year: String
   cover_art: String
+}
+
+#  ---------------------------------
+#  ---  Playlist Models ---
+#  ---------------------------------
+type Playlist {
+  id: ID!
+  name: String!
+  lastUpdate: String! # Typically ISO8601 format
+  lastAccessed: String # Optional, Typically ISO8601 format
+  cover_art: String # Optional
+  songs: [Song!]! # The list of songs in this playlist (non-null list, non-null songs)
+  # You might want songCount: Int! here too for efficiency
+}
+
+type PlaylistResponse {
+  playlists: [Playlist!]! # Ensure playlists in the list are non-null
+  totalItemsCount: Int!
+}
+
+input PlaylistInput {
+  id: ID # Optional: Provide for updates, omit for creates
+  name: String!
+  # lastUpdate/lastAccessed are usually handled server-side
+  cover_art: String # Optional
+  # Note: Managing songs within the playlist is often done via separate mutations (add/remove)
+  # rather than passing a list of song IDs here, especially for large playlists.
 }

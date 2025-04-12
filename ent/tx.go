@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// Music is the client for interacting with the Music builders.
 	Music *MusicClient
+	// Playlist is the client for interacting with the Playlist builders.
+	Playlist *PlaylistClient
 
 	// lazily loaded.
 	client     *Client
@@ -146,6 +148,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Music = NewMusicClient(tx.config)
+	tx.Playlist = NewPlaylistClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.
