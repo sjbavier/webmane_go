@@ -8,9 +8,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time" // <-- Added for time.Now()
 	"webmane_go/ent"
 	"webmane_go/ent/music"
+	"webmane_go/ent/playlist" // <-- Added for playlist predicates/fields
 	"webmane_go/graph/model"
+	"webmane_go/graph/utils"
 )
 
 // UpsertSong is the resolver for the upsertSong field.
@@ -62,9 +65,12 @@ func (r *mutationResolver) UpsertSong(ctx context.Context, input model.SongInput
 		updatedMusic, err := updater.Save(ctx)
 		if err != nil {
 			// Handle potential errors like Not Found or constraint violations
+			if ent.IsNotFound(err) {
+				return nil, fmt.Errorf("song with ID %s not found", *input.ID)
+			}
 			return nil, fmt.Errorf("error updating song %s: %w", *input.ID, err)
 		}
-		return mapEntMusicToModelSong(updatedMusic), nil
+		return utils.MapEntMusicToModelSong(updatedMusic), nil
 
 	} else {
 		// --- INSERT ---
@@ -96,7 +102,7 @@ func (r *mutationResolver) UpsertSong(ctx context.Context, input model.SongInput
 			// Handle potential errors like constraint violations (e.g., unique path)
 			return nil, fmt.Errorf("error creating song for path %s: %w", input.Path, err)
 		}
-		return mapEntMusicToModelSong(newMusic), nil
+		return utils.MapEntMusicToModelSong(newMusic), nil
 	}
 }
 
@@ -135,7 +141,7 @@ func (r *mutationResolver) AdditivePathUpsertSong(ctx context.Context, input mod
 		if err != nil {
 			return nil, fmt.Errorf("error creating song for path %s: %w", input.Path, err)
 		}
-		return mapEntMusicToModelSong(newSong), nil
+		return utils.MapEntMusicToModelSong(newSong), nil
 	}
 
 	// Update case: song exists.
@@ -163,7 +169,189 @@ func (r *mutationResolver) AdditivePathUpsertSong(ctx context.Context, input mod
 	if err != nil {
 		return nil, fmt.Errorf("error updating song for path %s: %w", input.Path, err)
 	}
-	return mapEntMusicToModelSong(updatedSong), nil
+	return utils.MapEntMusicToModelSong(updatedSong), nil
+}
+
+// UpsertPlaylist is the resolver for the upsertPlaylist field.
+func (r *mutationResolver) UpsertPlaylist(ctx context.Context, input model.PlaylistInput) (*model.Playlist, error) {
+	// Ent handles last_update automatically via UpdateDefault(time.Now)
+	// We update last_accessed manually here
+
+	if input.ID != nil && *input.ID != "" {
+		// --- UPDATE ---
+		id, err := strconv.Atoi(*input.ID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ID format: %w", err)
+		}
+		updater := r.EntClient.Playlist.UpdateOneID(id).
+			SetName(input.Name).        // Name is required
+			SetLastAccessed(time.Now()) // Update last accessed time on modification
+
+		// Set optional fields only if provided
+		if input.CoverArt != nil {
+			updater.SetCoverArt(*input.CoverArt)
+		}
+
+		updatedPlaylist, err := updater.Save(ctx)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return nil, fmt.Errorf("playlist with ID %s not found", *input.ID)
+			}
+			return nil, fmt.Errorf("error updating playlist %s: %w", *input.ID, err)
+		}
+		// Eager load songs after update to return the full playlist state
+		// Although songs aren't modified here, returning the full object is often expected.
+		updatedPlaylist, err = r.EntClient.Playlist.Query().
+			Where(playlist.ID(updatedPlaylist.ID)).
+			WithSongs(). // Eager load the songs edge
+			Only(ctx)
+		if err != nil {
+			// This shouldn't happen if the update succeeded, but handle defensively
+			return nil, fmt.Errorf("error fetching updated playlist %s with songs: %w", *input.ID, err)
+		}
+		return utils.MapEntPlaylistToModelPlaylist(updatedPlaylist), nil
+
+	} else {
+		// --- CREATE ---
+		creator := r.EntClient.Playlist.Create().
+			SetName(input.Name).        // Name is required
+			SetLastAccessed(time.Now()) // Set initial last accessed time
+
+		// Set optional fields
+		if input.CoverArt != nil {
+			creator.SetCoverArt(*input.CoverArt)
+		}
+		// Note: We don't add songs during initial creation via this input.
+		// Use AddSongToPlaylist mutation for that.
+
+		newPlaylist, err := creator.Save(ctx)
+		if err != nil {
+			// Handle potential errors like constraint violations
+			return nil, fmt.Errorf("error creating playlist %s: %w", input.Name, err)
+		}
+		// The newly created playlist won't have songs yet, but the mapper handles empty edges.
+		return utils.MapEntPlaylistToModelPlaylist(newPlaylist), nil
+	}
+}
+
+// DeletePlaylist is the resolver for the deletePlaylist field.
+func (r *mutationResolver) DeletePlaylist(ctx context.Context, id string) (bool, error) {
+	intID, err := strconv.Atoi(id)
+	if err != nil {
+		return false, fmt.Errorf("invalid ID format: %w", err)
+	}
+
+	err = r.EntClient.Playlist.DeleteOneID(intID).Exec(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			// Return false, nil because the playlist is already gone (idempotent delete)
+			// Or return an error if you prefer:
+			// return false, fmt.Errorf("playlist with ID %s not found", id)
+			return false, nil
+		}
+		// For other errors, return false and the error
+		return false, fmt.Errorf("error deleting playlist %s: %w", id, err)
+	}
+
+	return true, nil // Return true on successful deletion
+}
+
+// AddSongToPlaylist is the resolver for the addSongToPlaylist field.
+func (r *mutationResolver) AddSongToPlaylist(ctx context.Context, playlistID string, songID string) (*model.Playlist, error) {
+	pID, err := strconv.Atoi(playlistID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid playlist ID format: %w", err)
+	}
+	sID, err := strconv.Atoi(songID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid song ID format: %w", err)
+	}
+
+	// Add the song to the playlist's 'songs' edge
+	// Also update LastAccessed and LastUpdate times (LastUpdate is handled by Ent)
+	playlistUpdater := r.EntClient.Playlist.UpdateOneID(pID).
+		AddSongIDs(sID).
+		SetLastAccessed(time.Now()) // Update last accessed
+
+	_, err = playlistUpdater.Save(ctx) // Save the edge change and timestamp updates
+	if err != nil {
+		// Handle potential errors like Not Found for playlist or song
+		if ent.IsNotFound(err) {
+			// Check if it was the playlist or the song that wasn't found
+			// Note: Ent might not distinguish which ID caused the Not Found in M2M updates directly.
+			// A pre-check might be needed for a more specific error message.
+			_, pErr := r.EntClient.Playlist.Get(ctx, pID)
+			if ent.IsNotFound(pErr) {
+				return nil, fmt.Errorf("playlist with ID %s not found", playlistID)
+			}
+			_, sErr := r.EntClient.Music.Get(ctx, sID)
+			if ent.IsNotFound(sErr) {
+				return nil, fmt.Errorf("song with ID %s not found", songID)
+			}
+			// If both exist but Save failed, it might be another issue
+			return nil, fmt.Errorf("error associating song %s with playlist %s: %w", songID, playlistID, err)
+		}
+		// Could also be a constraint error if the relationship already exists,
+		// though Ent usually handles this gracefully (no-op).
+		return nil, fmt.Errorf("error adding song %s to playlist %s: %w", songID, playlistID, err)
+	}
+
+	// Fetch the updated playlist with its songs to return
+	updatedPlaylist, err := r.EntClient.Playlist.Query().
+		Where(playlist.ID(pID)).
+		WithSongs(). // Eager load songs
+		Only(ctx)
+	if err != nil {
+		// Should generally not happen if the update succeeded, but handle defensively
+		if ent.IsNotFound(err) { // Should be extremely rare here
+			return nil, fmt.Errorf("playlist with ID %s disappeared after update", playlistID)
+		}
+		return nil, fmt.Errorf("error fetching playlist %s after adding song: %w", playlistID, err)
+	}
+
+	return utils.MapEntPlaylistToModelPlaylist(updatedPlaylist), nil
+}
+
+// RemoveSongFromPlaylist is the resolver for the removeSongFromPlaylist field.
+func (r *mutationResolver) RemoveSongFromPlaylist(ctx context.Context, playlistID string, songID string) (*model.Playlist, error) {
+	pID, err := strconv.Atoi(playlistID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid playlist ID format: %w", err)
+	}
+	sID, err := strconv.Atoi(songID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid song ID format: %w", err)
+	}
+
+	// Remove the song from the playlist's 'songs' edge
+	// Also update LastAccessed and LastUpdate times (LastUpdate handled by Ent)
+	playlistUpdater := r.EntClient.Playlist.UpdateOneID(pID).
+		RemoveSongIDs(sID).
+		SetLastAccessed(time.Now()) // Update last accessed
+
+	_, err = playlistUpdater.Save(ctx) // Save the edge change and timestamp updates
+	if err != nil {
+		// Handle potential errors like Not Found for playlist
+		if ent.IsNotFound(err) {
+			return nil, fmt.Errorf("playlist with ID %s not found", playlistID)
+		}
+		// Note: Ent doesn't error if the song wasn't in the playlist to begin with.
+		return nil, fmt.Errorf("error removing song %s from playlist %s: %w", songID, playlistID, err)
+	}
+
+	// Fetch the updated playlist with its songs to return
+	updatedPlaylist, err := r.EntClient.Playlist.Query().
+		Where(playlist.ID(pID)).
+		WithSongs(). // Eager load songs
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) { // Should be extremely rare here
+			return nil, fmt.Errorf("playlist with ID %s disappeared after update", playlistID)
+		}
+		return nil, fmt.Errorf("error fetching playlist %s after removing song: %w", playlistID, err)
+	}
+
+	return utils.MapEntPlaylistToModelPlaylist(updatedPlaylist), nil
 }
 
 // Song is the resolver for the song field.
@@ -175,24 +363,26 @@ func (r *queryResolver) Song(ctx context.Context, id string) (*model.Song, error
 
 	entMusic, err := r.EntClient.Music.Get(ctx, intID)
 	if err != nil {
-		// Handle ent.IsNotFound(err) specifically if needed
+		if ent.IsNotFound(err) {
+			return nil, nil // Return nil, nil for not found as per GraphQL convention
+		}
 		return nil, fmt.Errorf("error fetching song %s: %w", id, err)
 	}
 
-	return mapEntMusicToModelSong(entMusic), nil
+	return utils.MapEntMusicToModelSong(entMusic), nil
 }
 
 // Music is the resolver for the music field.
 func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *int, searchText *string) (*model.MusicResponse, error) {
 	defaultPageNumber := 1
-	defaultPageSize := 10
+	defaultPageSize := 10 // Default page size
 
 	pn := defaultPageNumber
-	if pageNumber != nil {
+	if pageNumber != nil && *pageNumber > 0 { // Ensure pageNumber is positive
 		pn = *pageNumber
 	}
 	ps := defaultPageSize
-	if pageSize != nil {
+	if pageSize != nil && *pageSize > 0 { // Ensure pageSize is positive
 		ps = *pageSize
 	}
 
@@ -210,12 +400,12 @@ func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *in
 				music.TitleContainsFold(st),
 				music.ArtistContainsFold(st),
 				music.AlbumContainsFold(st),
-				// Add other searchable fields if needed (Genre, Year?)
+				music.GenreContainsFold(st), // Added Genre search
 			),
 		)
 	}
 
-	// Get total count *before* applying limit/offset
+	// Get total count *before* applying limit/offset but *after* filtering
 	totalItemsCount, err := query.Count(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting total item count: %w", err)
@@ -225,7 +415,7 @@ func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *in
 	entSongs, err := query.
 		Limit(ps).
 		Offset(offset).
-		// OrderBy(ent.Asc(music.FieldTitle)) // Optional: Add default sorting
+		Order(ent.Asc(music.FieldArtist), ent.Asc(music.FieldAlbum), ent.Asc(music.FieldTitle)). // Example sorting
 		All(ctx)
 
 	if err != nil {
@@ -233,13 +423,115 @@ func (r *queryResolver) Music(ctx context.Context, pageNumber *int, pageSize *in
 	}
 
 	// Map results
-	songs := make([]*model.Song, len(entSongs))
-	for i, entSong := range entSongs {
-		songs[i] = mapEntMusicToModelSong(entSong)
+	// Ensure the slice type matches the GraphQL schema ([Song]! which maps to []*model.Song)
+	songs := make([]*model.Song, 0, len(entSongs)) // Initialize with 0 length, capacity len(entSongs)
+	for _, entSong := range entSongs {
+		mappedSong := utils.MapEntMusicToModelSong(entSong)
+		if mappedSong != nil { // Good practice to check mapper result
+			songs = append(songs, mappedSong)
+		}
 	}
 
 	return &model.MusicResponse{
 		Songs:           songs,
+		TotalItemsCount: totalItemsCount,
+	}, nil
+}
+
+// Playlist is the resolver for the playlist field.
+func (r *queryResolver) Playlist(ctx context.Context, id string) (*model.Playlist, error) {
+	intID, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ID format: %w", err)
+	}
+
+	// Fetch the playlist and Eager Load its songs
+	entPlaylist, err := r.EntClient.Playlist.Query().
+		Where(playlist.ID(intID)).
+		WithSongs(func(q *ent.MusicQuery) { // Optional: Order songs within the playlist
+			q.Order(ent.Asc(music.FieldTitle))
+		}).
+		Only(ctx) // Use Only since we expect exactly one result for a given ID
+
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, nil // Return nil, nil for not found
+		}
+		return nil, fmt.Errorf("error fetching playlist %s: %w", id, err)
+	}
+
+	// Update LastAccessed time when a playlist is fetched
+	// We do this *after* successfully fetching to avoid updating if it doesn't exist.
+	_, updateErr := r.EntClient.Playlist.UpdateOneID(intID).
+		SetLastAccessed(time.Now()).
+		Save(ctx)
+	if updateErr != nil {
+		// Log the error but don't fail the request, fetching is the primary goal
+		// Consider using a proper logger here instead of fmt.Printf
+		fmt.Printf("Warning: failed to update lastAccessed for playlist %d: %v\n", intID, updateErr)
+	}
+
+	return utils.MapEntPlaylistToModelPlaylist(entPlaylist), nil
+}
+
+// Playlists is the resolver for the playlists field.
+func (r *queryResolver) Playlists(ctx context.Context, pageNumber *int, pageSize *int, searchText *string) (*model.PlaylistResponse, error) {
+	defaultPageNumber := 1
+	defaultPageSize := 10 // Default page size
+
+	pn := defaultPageNumber
+	if pageNumber != nil && *pageNumber > 0 {
+		pn = *pageNumber
+	}
+	ps := defaultPageSize
+	if pageSize != nil && *pageSize > 0 {
+		ps = *pageSize
+	}
+
+	offset := (pn - 1) * ps
+
+	// Base query
+	query := r.EntClient.Playlist.Query()
+
+	// Apply search filter if provided (searching playlist name)
+	if searchText != nil && *searchText != "" {
+		st := *searchText
+		query = query.Where(playlist.NameContainsFold(st)) // Case-insensitive search on name
+	}
+
+	// Get total count *before* applying limit/offset but *after* filtering
+	totalItemsCount, err := query.Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting total playlist count: %w", err)
+	}
+
+	// Apply pagination, ordering, and fetch results with songs
+	entPlaylists, err := query.
+		Limit(ps).
+		Offset(offset).
+		// Example ordering: Most recently accessed first, then by name
+		Order(ent.Desc(playlist.FieldLastAccessed), ent.Asc(playlist.FieldName)).
+		WithSongs(func(q *ent.MusicQuery) { // Optional: Order songs within each playlist
+			q.Order(ent.Asc(music.FieldTitle))
+		}).
+		All(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("error fetching playlist list: %w", err)
+	}
+
+	// Map results
+	// Ensure the slice type matches the GraphQL schema ([Playlist!]! which maps to []*model.Playlist)
+	playlists := make([]*model.Playlist, 0, len(entPlaylists)) // Initialize with 0 length
+	for _, entPl := range entPlaylists {
+		mappedPlaylist := utils.MapEntPlaylistToModelPlaylist(entPl)
+		if mappedPlaylist != nil {
+			playlists = append(playlists, mappedPlaylist)
+		}
+	}
+
+	return &model.PlaylistResponse{
+		Playlists:       playlists,
 		TotalItemsCount: totalItemsCount,
 	}, nil
 }
@@ -259,19 +551,5 @@ type queryResolver struct{ *Resolver }
 //   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
 //     it when you're done.
 //   - You have helper methods in this file. Move them out to keep these resolver files clean.
-func mapEntMusicToModelSong(entMusic *ent.Music) *model.Song {
-	if entMusic == nil {
-		return nil
-	}
-	return &model.Song{
-		ID:          strconv.Itoa(entMusic.ID), // Convert int ID to string
-		Path:        entMusic.Path,
-		LastUpdate:  entMusic.LastUpdate.Format("2006-01-02T15:04:05Z07:00"), // Format time
-		Title:       &entMusic.Title,                                         // Ent uses value types for optional strings
-		Artist:      &entMusic.Artist,
-		Album:       &entMusic.Album,
-		Genre:       &entMusic.Genre,
-		ReleaseYear: &entMusic.ReleaseYear,
-		CoverArt:    &entMusic.CoverArt,
-	}
-}
+// --- The old mapEntMusicToModelSong function is no longer needed here ---
+// --- It's correctly placed in graph/utils/mappers.go ---

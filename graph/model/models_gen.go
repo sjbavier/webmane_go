@@ -10,6 +10,26 @@ type MusicResponse struct {
 type Mutation struct {
 }
 
+type Playlist struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	LastUpdate   string  `json:"lastUpdate"`
+	LastAccessed *string `json:"lastAccessed,omitempty"`
+	CoverArt     *string `json:"cover_art,omitempty"`
+	Songs        []*Song `json:"songs"`
+}
+
+type PlaylistInput struct {
+	ID       *string `json:"id,omitempty"`
+	Name     string  `json:"name"`
+	CoverArt *string `json:"cover_art,omitempty"`
+}
+
+type PlaylistResponse struct {
+	Playlists       []*Playlist `json:"playlists"`
+	TotalItemsCount int         `json:"totalItemsCount"`
+}
+
 type Query struct {
 }
 
