@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"log" // Use log package for better output formatting
@@ -17,14 +16,22 @@ import (
 
 func DlUrl(resolver *graph.Resolver) *cobra.Command {
 	ctx := &CommandContext{Resolver: resolver}
-	return &cobra.Command{
+	var url, outArg string
+
+	cmd := &cobra.Command{
 		Use:   "dl",
 		Short: "download a video and convert to m4a",
-		Long: "Downloads video, converts it to an m4a, adds it to the music library",
+		Long:  "Downloads video, converts it to an m4a, adds it to the music library",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if url == "" {
+				return fmt.Errorf("the --url flag is required")
+			}
+
 			log.Println("Starting database seed process...")
-			err := ctx.downloadUrl(args)
+			// Pass the flag values to the download function
+			err := ctx.DownloadUrl(url, outArg)
 			if err != nil {
+				// The error is already logged in downloadUrl, just return it
 				log.Printf("Seeding process finished with errors: %v", err)
 				return err
 			}
@@ -32,33 +39,28 @@ func DlUrl(resolver *graph.Resolver) *cobra.Command {
 			return nil
 		},
 	}
+
+	// Define flags and attach them to the command
+	cmd.Flags().StringVar(&url, "url", "", "YouTube URL to download (e.g., https://www.youtube.com/watch?v=videoID)")
+	cmd.Flags().StringVar(&outArg, "out", "", "Output filename (e.g., audio.m4a). If empty, defaults to <video_title>.m4a")
+	cmd.MarkFlagRequired("url") // Make the --url flag mandatory
+
+	return cmd
 }
 
-
-func (ctx *CommandContext) downloadUrl(args []string) error {
-	// Parse command-line flags
-	fmt.Printf("args: %v\n", args)
-	url := flag.String("url", "", "https://www.youtube.com/watch?v=cD6qkQjTHq0")
-	outArg := flag.String("out", "", "Output filename (e.g., audio.m4a). If empty, defaults to <video_title>.m4a")
-	flag.Parse()
-
-	if *url == "" {
-		fmt.Fprintln(os.Stderr, "Usage: go run main.go -url <YouTubeURL> [-out <filename>]")
-		os.Exit(1)
-	}
-
+func (ctx *CommandContext) DownloadUrl(url, outArg string) error {
 	// Create a client
 	client := youtube.Client{}
 
 	// Fetch video metadata
-	video, err := client.GetVideo(*url)
+	video, err := client.GetVideo(url)
 	if err != nil {
 		log.Fatalf("Error fetching video info: %v\n", err)
 		return err
 	}
 
 	// Determine output filename
-	outputFilename := *outArg
+	outputFilename := outArg
 	if outputFilename == "" {
 		if video.Title != "" {
 			sanitizedTitle := sanitizeFilename(video.Title)
@@ -129,7 +131,7 @@ func (ctx *CommandContext) downloadUrl(args []string) error {
 	fmt.Printf("Successfully downloaded %d bytes to %s\n", n, outputFilename)
 	fmt.Printf("Format details:  MimeType: %s, Bitrate: %dkbps\n",
 		bestM4AFormat.MimeType, bestM4AFormat.Bitrate/1000)
-	
+
 	return nil
 }
 
