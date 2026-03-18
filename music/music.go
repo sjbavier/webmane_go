@@ -49,7 +49,7 @@ func GetMusic(client *ent.Client) http.HandlerFunc {
 			Only(ctx)                 // Expect exactly one result
 
 		if err != nil {
-				// Handle other potential database errors
+			// Handle other potential database errors
 			http.Error(w, "Error getting music: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -59,14 +59,14 @@ func GetMusic(client *ent.Client) http.HandlerFunc {
 		extension := filepath.Ext(filePath)
 
 		// Set the appropriate content type
-		switch {
-		case extension == ".flac":
+		switch extension {
+		case ".flac":
 			w.Header().Set("Content-Type", "audio/flac")
-		case extension == ".mp4":
+		case ".mp4":
 			w.Header().Set("Content-Type", "audio/mp4")
-		case extension == ".m4a":
+		case ".m4a":
 			w.Header().Set("Content-Type", "audio/m4a")
-		case extension == ".mp3":
+		case ".mp3":
 			w.Header().Set("Content-Type", "audio/mp3")
 		default:
 			// This case might indicate bad data if the extension was validated on insert

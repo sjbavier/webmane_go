@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 
 	// Import base ent package for IsNotFound
@@ -50,7 +51,10 @@ Errors processing individual files will be logged, but the process will attempt 
 			return nil
 		},
 	}
+	
 	rootCmd.AddCommand(seedCmd)
+	dlUlr := DlUrl(ctx.Resolver)
+	rootCmd.AddCommand(dlUlr)
 	return rootCmd
 }
 
@@ -132,13 +136,14 @@ func (ctx *CommandContext) seedMusic() error {
 
 		// only support certain filetypes
 		extension := filepath.Ext(path)
-		isSupported := false
-		for _, ext := range music.Extensions {
-			if extension == ext {
-				isSupported = true
-				break
-			}
-		}
+		isSupported := slices.Contains(music.Extensions, extension)
+		// isSupported := false
+		// for _, ext := range music.Extensions {
+			// if extension == ext {
+				// isSupported = true
+				// break
+			// }
+		// }
 
 		if isSupported {
 			wg.Add(1)
@@ -149,7 +154,7 @@ func (ctx *CommandContext) seedMusic() error {
 				defer func() { <-semaphore }()
 
 				// *** Call the modified insertSong ***
-				err := insertSongWithAdditiveLogic(filePath, ctx) // Renamed for clarity
+				err := InsertSongWithAdditiveLogic(filePath, ctx) // Renamed for clarity
 				if err != nil {
 					log.Printf("ERROR processing song %s: %v", filePath, err)
 					select {
@@ -182,7 +187,7 @@ func (ctx *CommandContext) seedMusic() error {
 }
 
 // *** New insertSong function specific to seeding with additive logic ***
-func insertSongWithAdditiveLogic(path string, cmdCtx *CommandContext) error {
+func InsertSongWithAdditiveLogic(path string, cmdCtx *CommandContext) error {
 	opCtx := context.Background() // Context for database operations
 
 	metaJson, errProbe := ffmpeg_go.Probe(path)
@@ -275,4 +280,4 @@ func insertSongWithAdditiveLogic(path string, cmdCtx *CommandContext) error {
 }
 
 // Note: The original insertSong function is effectively replaced by
-// insertSongWithAdditiveLogic for the context of the seed command.
+// INsertSongWithAdditiveLogic for the context of the seed command.

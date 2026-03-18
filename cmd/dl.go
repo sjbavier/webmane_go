@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 	"webmane_go/graph"
 
 	"github.com/kkdai/youtube/v2"
+	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -61,6 +63,7 @@ func (ctx *CommandContext) DownloadUrl(url, outArg string) error {
 
 	// Determine output filename
 	outputFilename := outArg
+	outputPath := os.Getenv("MUSIC_DATA")
 	if outputFilename == "" {
 		if video.Title != "" {
 			sanitizedTitle := sanitizeFilename(video.Title)
@@ -106,7 +109,7 @@ func (ctx *CommandContext) DownloadUrl(url, outArg string) error {
 	}
 
 	// Open stream
-	stream, _, err := client.GetStream(video, bestM4AFormat)
+	stream, size, err := client.GetStream(video, bestM4AFormat)
 	if err != nil {
 		log.Fatalf("Error getting stream: %v\n", err)
 		return err
@@ -114,23 +117,47 @@ func (ctx *CommandContext) DownloadUrl(url, outArg string) error {
 	defer stream.Close()
 
 	// Create output file
-	file, err := os.Create(outputFilename)
+	file, err := os.Create(outputPath + outputFilename)
 	if err != nil {
 		log.Fatalf("Error creating file: %v\n", err)
 		return err
 	}
 	defer file.Close()
 
+	// Create a new progress bar
+	bar := progressbar.NewOptions64(
+		size,
+		progressbar.OptionSetDescription("Downloading"),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionSetWidth(10),
+		progressbar.OptionThrottle(65*time.Millisecond),
+		progressbar.OptionShowCount(),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprint(os.Stderr, "\n")
+		}),
+		progressbar.OptionSpinnerType(14),
+		progressbar.OptionFullWidth(),
+	)
+	bar.RenderBlank()
+
 	// Copy stream into file
-	n, err := io.Copy(file, stream)
+	_, err = io.Copy(io.MultiWriter(file, bar), stream)
 	if err != nil {
 		log.Fatalf("Error writing to file: %v\n", err)
 		return err
 	}
 
-	fmt.Printf("Successfully downloaded %d bytes to %s\n", n, outputFilename)
+	fmt.Printf("Successfully downloaded to %s\n", outputFilename)
 	fmt.Printf("Format details:  MimeType: %s, Bitrate: %dkbps\n",
 		bestM4AFormat.MimeType, bestM4AFormat.Bitrate/1000)
+	
+	// insert song in db
+	err = InsertSongWithAdditiveLogic(outputPath + outputFilename, ctx)
+	if err != nil {
+		log.Fatalf("Error Inserting song to database %v\n", err)
+		return err
+	}
 
 	return nil
 }

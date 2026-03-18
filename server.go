@@ -21,6 +21,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 
 	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/joho/godotenv"
 )
 
 // ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
@@ -57,6 +58,9 @@ import (
 const defaultPort = "8080"
 
 func main() {
+	// Load environment variables from .env file if present
+	_ = godotenv.Load()
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort
